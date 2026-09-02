@@ -1,0 +1,61 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Least privilege: the gate reads code and nothing else.
+permissions:
+  contents: read
+
+jobs:
+  gate:
+    name: gate (node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ["22.18.0", "24.x"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      # Reproducible install off the committed lockfile.
+      - run: npm ci
+
+      # The canonical gate, split so a failure names itself.
+      - run: npm run build
+      - run: npx tsc --noEmit
+      - run: npx vitest run
+
+      # The packaging gates.
+      - run: npm run test:package
+      - run: npm audit --audit-level=high
+
+      # Both `serve` runtimes are exercised on every PR: the packaged static
+      # runtime is covered by test:package, and this covers the --dev fork loop
+      # (vite + src/ui exist in a checkout). Without it, --dev rots unnoticed and
+      # contributors discover it broken at the worst possible time.
+      - name: serve --dev boot check
+        run: |
+          set -euo pipefail
+          node bin/keyart.js serve --dev --port 4318 > /tmp/dev-serve.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill $SERVER_PID 2>/dev/null || true' EXIT
+          for i in $(seq 1 40); do
+            if curl -sf -o /dev/null http://127.0.0.1:4318/; then
+              echo "serve --dev answered on attempt $i"
+              exit 0
+            fi
+            if ! kill -0 $SERVER_PID 2>/dev/null; then
+              echo "serve --dev exited early:"; cat /tmp/dev-serve.log; exit 1
+            fi
+            sleep 1
+          done
+          echo "serve --dev never answered:"; cat /tmp/dev-serve.log
+          exit 1

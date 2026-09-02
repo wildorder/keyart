@@ -1,0 +1,4324 @@
+/* =========================================================================
+   Design tokens
+   ========================================================================= */
+:root {
+  /* Color — surfaces & text */
+  --color-bg: #f4f5f7;
+  --color-surface: #ffffff;
+  --color-surface-alt: #fafbfc;
+  --color-border: #e3e6ea;
+  --color-border-strong: #d0d5dc;
+  --color-text: #1a1d21;
+  --color-text-muted: #5c636e;
+  --color-text-faint: #8b929c;
+
+  /* Color — accent & semantic */
+  --color-accent: #4a45c9;
+  --color-accent-hover: #3a35b0;
+  --color-accent-soft: #f1eefa;
+  --color-success: #2d7d46;
+  --color-warn: #8a6d1a;
+  --color-danger: #a33;
+
+  /* Spacing scale */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+
+  /* Radius */
+  --radius-sm: 4px;
+  --radius: 8px;
+  --radius-lg: 12px;
+  --radius-pill: 999px;
+
+  /* Typography */
+  --font-sans: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    Roboto, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  --fs-xs: 0.75rem;
+  --fs-sm: 0.85rem;
+  --fs-base: 0.925rem;
+  --fs-lg: 1.1rem;
+  --fs-xl: 1.35rem;
+  --fs-2xl: 1.6rem;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.06);
+  --shadow: 0 2px 8px rgba(16, 24, 40, 0.08);
+  --shadow-lg: 0 8px 24px rgba(16, 24, 40, 0.12);
+
+  /* Layout */
+  --sidebar-width: 256px;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-sans);
+  line-height: 1.6;
+  color: var(--color-text);
+  background: var(--color-bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3 {
+  line-height: 1.3;
+}
+
+code {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+  padding: 0.05rem 0.35rem;
+  border-radius: var(--radius-sm);
+}
+
+/* =========================================================================
+   App shell — sidebar + main
+   ========================================================================= */
+.app-shell {
+  display: grid;
+  grid-template-columns: var(--sidebar-width) 1fr;
+  min-height: 100vh;
+}
+
+.app-aside {
+  position: sticky;
+  top: 0;
+  align-self: start;
+  height: 100vh;
+  overflow-y: auto;
+  background: var(--color-surface);
+  border-right: 1px solid var(--color-border);
+  padding: var(--space-5) var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.brand-mark {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.brand-wordmark {
+  font-size: var(--fs-lg);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--color-text);
+}
+
+.brand-project {
+  font-size: var(--fs-sm);
+  color: var(--color-text-muted);
+}
+
+.main {
+  min-width: 0;
+  width: 100%;
+  padding: var(--space-4) var(--space-5);
+  /* The content area is the white surface itself, full-bleed — not a narrow
+     card floating on a grey page. */
+  background: var(--color-surface);
+}
+
+/* Sidebar nav */
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  flex: 1 1 auto;
+}
+
+/* "All directions" browse grid (chrome "Directions" toggle). */
+
+
+
+
+
+
+
+
+
+
+
+
+
+/* "+ New direction" card at the end of the grid. */
+
+
+
+
+/* Secondary destinations pinned to the bottom, visually de-emphasized. */
+.sidebar-utility {
+  margin-top: auto;
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border);
+}
+
+.sidebar-utility .section-nav-item {
+  font-size: var(--fs-xs);
+  color: var(--color-text-faint);
+}
+
+.sidebar-utility .section-nav-item:hover,
+.sidebar-utility .section-nav-item.active {
+  color: var(--color-text);
+}
+
+.sidebar-utility .section-nav-item.active {
+  background: var(--color-surface-alt);
+  font-weight: 600;
+}
+
+.sidebar-heading {
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-faint);
+  margin-bottom: var(--space-2);
+}
+
+.direction-nav,
+.section-nav {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.direction-nav-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  text-align: left;
+  padding: var(--space-2) var(--space-3);
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--fs-sm);
+  cursor: pointer;
+}
+
+.direction-nav-item:hover {
+  background: var(--color-surface-alt);
+}
+
+.direction-nav-item.active {
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+  font-weight: 600;
+}
+
+.direction-nav-name {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.section-nav-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: var(--space-2) var(--space-3);
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-muted);
+  text-decoration: none;
+  font: inherit;
+  font-size: var(--fs-sm);
+  cursor: pointer;
+}
+
+.section-nav-item:hover {
+  background: var(--color-surface-alt);
+  color: var(--color-text);
+}
+
+.section-nav-item.active {
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+  font-weight: 600;
+}
+
+.direction-nav-approved {
+  flex: 0 0 auto;
+  color: #d4a017;
+  font-size: var(--fs-sm);
+  line-height: 1;
+}
+
+/* Thumbnail row: fixed thumb + a stacked (name / meta) body. */
+.direction-nav-item--thumb {
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2);
+  border-radius: var(--radius);
+}
+
+/* The approved direction gets a subtle accent rail so it stands out in the list
+   (the one status distinction the studio actually surfaces). */
+.direction-nav-item--approved {
+  box-shadow: inset 3px 0 0 var(--color-accent);
+}
+
+/* Inner column: name row on top, muted meta line beneath. */
+.direction-nav-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.direction-nav-name-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+/* One muted line: "3 directions · Jul 13" */
+.direction-nav-meta {
+  font-size: var(--fs-xs);
+  color: var(--color-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.direction-nav-item.active .direction-nav-meta {
+  color: inherit;
+}
+
+/* Fixed-size thumbnail tile (shared by <img> and placeholder <span>) */
+.direction-nav-thumb {
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-alt);
+}
+
+/* Initial-letter placeholder when no image is available */
+.direction-nav-thumb--placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+  font-size: var(--fs-base);
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+/* "+ New direction" affordance pinned under the direction list. */
+.sidebar-new-direction {
+  margin-top: var(--space-2);
+}
+
+.sidebar-new-direction > .btn {
+  width: 100%;
+  justify-content: center;
+  background: transparent;
+  color: var(--color-text-muted);
+  border: 1px dashed var(--color-border-strong);
+}
+
+.sidebar-new-direction > .btn:hover {
+  color: var(--color-accent);
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+}
+
+/* =========================================================================
+   Retired overview-grid styles (single-level IA)
+   ========================================================================= */
+
+
+
+
+
+
+
+
+
+
+
+
+/* "← All directions" back link at the top of the direction detail. */
+
+/* =========================================================================
+   Sections / cards
+   ========================================================================= */
+h1 {
+  font-size: var(--fs-2xl);
+  margin-bottom: var(--space-1);
+}
+
+h2 {
+  font-size: var(--fs-xl);
+  margin-bottom: var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+  padding-bottom: var(--space-2);
+}
+
+/* A flat content block on the white main surface — no card chrome. Exactly one
+   destination renders at a time, so sections are page-level regions, not stacked
+   cards. (Legacy view renders two; the margin keeps them apart.) */
+.section {
+  margin-bottom: var(--space-6);
+  scroll-margin-top: var(--space-4);
+}
+
+.section-subtitle {
+  font-weight: normal;
+  font-size: var(--fs-sm);
+  color: var(--color-text-muted);
+}
+
+.section-note {
+  color: var(--color-text-muted);
+  font-size: var(--fs-sm);
+  margin-bottom: var(--space-3);
+}
+
+
+.brief-text {
+  font-size: var(--fs-base);
+  color: var(--color-text);
+}
+
+.provenance {
+  color: var(--color-text-muted);
+  font-size: var(--fs-sm);
+  font-style: italic;
+  margin-bottom: var(--space-3);
+}
+
+/* =========================================================================
+   Direction cards
+   ========================================================================= */
+.direction-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--space-4);
+}
+
+.direction-card {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: var(--space-4);
+  background: var(--color-surface-alt);
+}
+
+.direction-card h3 {
+  font-size: var(--fs-base);
+  margin-bottom: var(--space-1);
+}
+
+.direction-card p {
+  font-size: var(--fs-sm);
+  color: var(--color-text-muted);
+}
+
+.direction-card.approved {
+  border-color: var(--color-success);
+  background: #f0faf3;
+}
+
+.rules-list {
+  font-size: var(--fs-sm);
+  padding-left: 1.25rem;
+  color: var(--color-text-muted);
+  margin-top: var(--space-2);
+}
+
+.rules-list li {
+  margin-bottom: var(--space-1);
+}
+
+/* =========================================================================
+   Guides / audit content
+   ========================================================================= */
+.guide-content {
+  font-size: var(--fs-base);
+  color: var(--color-text);
+  max-height: 480px;
+  overflow-y: auto;
+}
+
+.audit-content {
+  font-size: var(--fs-base);
+  color: var(--color-text);
+}
+
+.audit-screenshot {
+  max-width: 100%;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  margin-top: var(--space-3);
+}
+
+/* =========================================================================
+   Empty / error / loading / footer
+   ========================================================================= */
+.empty-state {
+  color: var(--color-text-faint);
+  font-style: italic;
+  font-size: var(--fs-sm);
+}
+
+.errors {
+  background: #fff3f3;
+  border: 1px solid #f5c6c6;
+  border-radius: var(--radius);
+  padding: var(--space-4);
+  margin-bottom: var(--space-5);
+  color: var(--color-danger);
+  font-size: var(--fs-sm);
+}
+
+.footer {
+  text-align: center;
+  color: var(--color-text-faint);
+  font-size: var(--fs-xs);
+  margin-top: var(--space-6);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border);
+}
+
+.loading {
+  text-align: center;
+  color: var(--color-text-muted);
+  padding: 6rem 0;
+  font-size: var(--fs-lg);
+}
+
+/* =========================================================================
+   Tabs
+   ========================================================================= */
+.tabs {
+  display: flex;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.tab {
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-alt);
+  color: var(--color-text);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--fs-sm);
+}
+
+.tab:hover {
+  border-color: var(--color-accent);
+}
+
+.tab.active {
+  background: var(--color-text);
+  color: #fff;
+  border-color: var(--color-text);
+}
+
+.silo-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* =========================================================================
+   Buttons
+   ========================================================================= */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+.btn:hover {
+  border-color: var(--color-accent);
+}
+
+.btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: #fff;
+}
+
+.btn-primary:hover {
+  background: var(--color-accent-hover);
+  border-color: var(--color-accent-hover);
+}
+
+.btn-ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--color-accent);
+}
+
+.btn-ghost:hover {
+  background: var(--color-accent-soft);
+  border-color: transparent;
+}
+
+/* =========================================================================
+   Form primitives (used by WS-05/06)
+   ========================================================================= */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+
+.label {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.input,
+.textarea,
+.select {
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--fs-sm);
+}
+
+.textarea {
+  min-height: 8rem;
+  resize: vertical;
+  font-family: inherit;
+}
+
+.input:focus,
+.textarea:focus,
+.select:focus {
+  outline: none;
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px var(--color-accent-soft);
+}
+
+/* =========================================================================
+   Gallery / asset thumbnails
+   ========================================================================= */
+.gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: var(--space-3);
+}
+
+.asset-thumb {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-alt);
+  display: block;
+}
+
+.asset-missing {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 4 / 3;
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-alt);
+  color: var(--color-text-faint);
+  font-size: var(--fs-xs);
+  font-style: italic;
+  text-align: center;
+  padding: var(--space-2);
+}
+
+/* =========================================================================
+   Markdown typography
+   ========================================================================= */
+.markdown {
+  font-size: var(--fs-base);
+  color: var(--color-text);
+}
+
+.markdown > *:first-child {
+  margin-top: 0;
+}
+
+.markdown > *:last-child {
+  margin-bottom: 0;
+}
+
+.markdown h1,
+.markdown h2,
+.markdown h3,
+.markdown h4 {
+  margin: var(--space-4) 0 var(--space-2);
+  border: none;
+  padding: 0;
+  line-height: 1.3;
+}
+
+.markdown h1 {
+  font-size: var(--fs-xl);
+}
+
+.markdown h2 {
+  font-size: var(--fs-lg);
+}
+
+.markdown h3 {
+  font-size: var(--fs-base);
+}
+
+.markdown p,
+.markdown ul,
+.markdown ol,
+.markdown blockquote,
+.markdown pre {
+  margin-bottom: var(--space-3);
+}
+
+.markdown ul,
+.markdown ol {
+  padding-left: 1.4rem;
+}
+
+.markdown li {
+  margin-bottom: var(--space-1);
+}
+
+.markdown a {
+  color: var(--color-accent);
+}
+
+.markdown blockquote {
+  border-left: 3px solid var(--color-border-strong);
+  padding-left: var(--space-3);
+  color: var(--color-text-muted);
+}
+
+.markdown pre {
+  background: var(--color-surface-alt);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-3);
+  overflow-x: auto;
+}
+
+.markdown pre code {
+  background: none;
+  color: inherit;
+  padding: 0;
+}
+
+.markdown table {
+  border-collapse: collapse;
+  margin-bottom: var(--space-3);
+}
+
+.markdown th,
+.markdown td {
+  border: 1px solid var(--color-border);
+  padding: var(--space-1) var(--space-3);
+  text-align: left;
+}
+
+/* =========================================================================
+   Badges
+   ========================================================================= */
+.badge {
+  display: inline-block;
+  padding: 0.05rem 0.5rem;
+  border-radius: var(--radius-pill);
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  border: 1px solid transparent;
+}
+.badge-active   { color: #2d7d46; background: #f0faf3; border-color: #bfe3cb; }
+.badge-parked   { color: #8a6d1a; background: #fdf6e0; border-color: #ecd9a0; }
+.badge-rejected { color: #a33;    background: #fff3f3; border-color: #f5c6c6; }
+.badge-approved { color: #5b4ca6; background: #f1eefa; border-color: #d4cdf0; }
+.badge-hard      { color: #a33;    background: #fff3f3; border-color: #f5c6c6; font-weight: 700; }
+.badge-guideline { color: #555;    background: #f1f1f1; border-color: #dcdcdc; }
+
+/* =========================================================================
+   Direction detail
+   ========================================================================= */
+.silo-notes {
+  color: var(--color-warn);
+  font-size: var(--fs-sm);
+  margin-bottom: var(--space-2);
+}
+
+.run-block {
+  margin-top: var(--space-4);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border);
+}
+.run-block h3 {
+  font-size: var(--fs-base);
+  margin-bottom: var(--space-2);
+}
+.run-block details {
+  margin-bottom: var(--space-3);
+}
+.run-block summary {
+  cursor: pointer;
+  font-size: var(--fs-sm);
+  color: var(--color-text-muted);
+}
+
+/* =========================================================================
+   Memory panel
+   ========================================================================= */
+.memory-panel {
+  margin-top: var(--space-5);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border);
+}
+.memory-panel h3 {
+  font-size: var(--fs-base);
+  margin-bottom: var(--space-2);
+}
+
+.memory-entry {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: var(--space-3);
+  margin-bottom: var(--space-2);
+  background: var(--color-surface-alt);
+}
+.memory-body {
+  font-size: var(--fs-sm);
+  color: var(--color-text);
+  margin: var(--space-1) 0;
+  white-space: pre-wrap;
+}
+.memory-meta {
+  font-size: var(--fs-xs);
+  color: var(--color-text-faint);
+}
+
+.memory-kind {
+  display: inline-block;
+  padding: 0.05rem 0.5rem;
+  border-radius: var(--radius-pill);
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  border: 1px solid transparent;
+}
+.memory-kind-feedback { color: #1f6f8b; background: #e8f4f8; border-color: #bcdce6; }
+.memory-kind-learning { color: #2d7d46; background: #f0faf3; border-color: #bfe3cb; }
+.memory-kind-decision { color: #5b4ca6; background: #f1eefa; border-color: #d4cdf0; }
+
+/* =========================================================================
+   Global brand rules
+   ========================================================================= */
+.global-approved,
+.global-rules {
+  margin-top: var(--space-5);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border);
+}
+
+.global-approved h3,
+.global-rules h3 {
+  font-size: var(--fs-base);
+  margin-bottom: var(--space-3);
+}
+
+.global-section .pointer-line {
+  font-size: var(--fs-base);
+  color: var(--color-text);
+  margin-bottom: var(--space-3);
+}
+
+.rule-list {
+  margin-top: var(--space-2);
+}
+.rule-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  padding: var(--space-2) 0;
+  border-top: 1px solid var(--color-border);
+}
+.rule-text {
+  font-size: var(--fs-base);
+  color: var(--color-text);
+  flex: 1 1 60%;
+}
+.rule-meta {
+  font-size: var(--fs-xs);
+  color: var(--color-text-faint);
+}
+
+/* =========================================================================
+   Toasts
+   ========================================================================= */
+.toast-host {
+  position: fixed;
+  bottom: var(--space-5);
+  right: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  z-index: var(--toast-z);
+  max-width: 360px;
+}
+
+.toast {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-left: 4px solid var(--color-text-muted);
+  box-shadow: var(--shadow-lg);
+  font-size: var(--fs-sm);
+}
+
+.toast-message {
+  flex: 1 1 auto;
+}
+
+.toast-close {
+  border: none;
+  background: none;
+  color: var(--color-text-faint);
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+}
+
+.toast-success { border-left-color: var(--color-success); }
+.toast-error   { border-left-color: var(--color-danger); }
+.toast-info    { border-left-color: var(--color-accent); }
+
+/* =========================================================================
+   Responsive collapse
+   ========================================================================= */
+@media (max-width: 768px) {
+  .app-shell {
+    grid-template-columns: 1fr;
+  }
+  .app-aside {
+    position: static;
+    height: auto;
+    flex-direction: column;
+    border-right: none;
+    border-bottom: 1px solid var(--color-border);
+  }
+  .main {
+    padding: var(--space-4);
+  }
+}
+
+/* =========================================================================
+   WS-05 authoring — parallel stream appends here (distinct class prefixes)
+   === WS-05 authoring ===
+   ========================================================================= */
+
+/* Section header row. */
+.section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+/* Create direction (authored form shell) -------------------------------------------------------- */
+.create-direction-open {
+  width: 100%;
+  margin-top: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface-alt);
+}
+
+.create-direction-head,
+.brief-editor-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.create-direction-head h3,
+.brief-editor-head h3 {
+  margin: 0;
+}
+
+.create-direction-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.field-hint {
+  margin: 0;
+  font-size: var(--fs-xs);
+  color: var(--color-text-muted);
+}
+
+.field-hint code {
+  font-family: var(--font-mono);
+  color: var(--color-text);
+}
+
+.field-error {
+  color: var(--color-danger);
+  font-weight: 600;
+}
+
+/* Settings -------------------------------------------------------------- */
+.settings-group {
+  margin: var(--space-5) 0;
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  max-width: 42rem;
+}
+
+.settings-group h3 {
+  margin: 0 0 var(--space-3);
+}
+
+.settings-actions {
+  display: flex;
+  justify-content: flex-start;
+  max-width: 42rem;
+}
+
+/* Brief editor ---------------------------------------------------------- */
+.brief-editor {
+  margin: var(--space-5) 0;
+}
+
+.brief-editor-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* Empty-brief affordance — nothing to select here, so the whole prompt is a
+   click target that opens the editor. */
+.brief-preview-empty {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: var(--space-3);
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-alt);
+  color: var(--color-text-faint);
+  font: inherit;
+  font-size: var(--fs-sm);
+  font-style: italic;
+  cursor: pointer;
+}
+
+.brief-preview-empty:hover {
+  border-color: var(--color-accent);
+  color: var(--color-text-muted);
+}
+
+.dirty-dot {
+  font-size: var(--fs-xs);
+  color: var(--color-warn);
+  font-weight: 600;
+}
+
+/* Structured brief form (WS-05) ---------------------------------------- */
+.brief-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.brief-form-section {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-3) var(--space-4) var(--space-4);
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.brief-form-section legend {
+  font-weight: 600;
+  font-size: var(--fs-sm);
+  padding: 0 var(--space-2);
+}
+
+.brief-form-note {
+  margin: 0;
+  font-size: var(--fs-xs);
+  font-style: italic;
+  color: var(--color-text-muted);
+}
+
+.brief-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.brief-field-label {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+}
+
+.brief-field-sub {
+  font-weight: 400;
+  color: var(--color-text-faint);
+}
+
+.brief-field-hint {
+  font-size: var(--fs-xs);
+  color: var(--color-warn);
+}
+
+.brief-audience-row {
+  display: flex;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.brief-audience-row .input {
+  flex: 1 1 8rem;
+}
+
+/* Map-a-ramble affordance */
+.brief-map {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-alt);
+}
+
+.brief-map-controls {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.brief-map-proposal {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--color-border);
+}
+
+.brief-map-diff {
+  margin: 0;
+  padding-left: var(--space-4);
+  font-size: var(--fs-sm);
+}
+
+.brief-swatch {
+  display: inline-block;
+  width: 0.85rem;
+  height: 0.85rem;
+  border-radius: 2px;
+  border: 1px solid var(--color-border-strong);
+  vertical-align: middle;
+}
+
+/* Moodboard uploader + dropzone ---------------------------------------- */
+.moodboard {
+  margin: var(--space-5) 0;
+}
+
+.dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  padding: var(--space-6);
+  border: 2px dashed var(--color-border-strong);
+  border-radius: var(--radius);
+  background: var(--color-surface-alt);
+  color: var(--color-text-muted);
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+
+.dropzone:hover {
+  border-color: var(--color-accent);
+}
+
+.dropzone-active {
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+}
+
+.dropzone-busy {
+  opacity: 0.7;
+  cursor: progress;
+}
+
+.dropzone-lead {
+  margin: 0;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.dropzone-hint {
+  margin: 0;
+  font-size: var(--fs-sm);
+}
+
+/* Notes composer -------------------------------------------------------- */
+.composer {
+  margin: var(--space-5) 0;
+}
+
+.composer-kind {
+  max-width: 12rem;
+  margin-bottom: 0;
+}
+
+.composer-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: var(--space-4);
+}
+
+/* Gallery additions (grid/thumb/missing come from the shared block above) */
+.gallery-empty {
+  margin-top: var(--space-3);
+}
+
+.asset-figure {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.asset-caption {
+  font-size: var(--fs-xs);
+  color: var(--color-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.asset-chip {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-alt);
+}
+
+.asset-chip-kind {
+  align-self: flex-start;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.asset-chip-label {
+  font-size: var(--fs-sm);
+  color: var(--color-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* =========================================================================
+   WS-06 actions — parallel stream appends here (distinct class prefixes)
+   === WS-06 actions ===
+   ========================================================================= */
+
+/* --- Action bar (retired action bar) --- */
+.action-bar {
+  margin: var(--space-4) 0 var(--space-5);
+}
+
+.action-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.action-hint {
+  color: var(--color-text-muted);
+  font-size: var(--fs-sm);
+  margin-bottom: var(--space-3);
+}
+
+/* One-shot "Guidance for this run" box above the Explore buttons. */
+.explore-guidance {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin-bottom: var(--space-3);
+}
+
+.explore-guidance-label {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.explore-guidance-input {
+  min-height: 3.5rem;
+}
+
+/* Inline direction editor (Edit… on a gallery card). */
+.direction-editor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border);
+}
+
+.direction-editor-short {
+  min-height: 3rem;
+}
+
+.direction-editor-copy {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: var(--space-2);
+}
+
+/* The structured `character` editor — six labeled inputs in a responsive grid. */
+.direction-editor-character {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: var(--space-2) var(--space-3) var(--space-3);
+  margin: 0;
+}
+
+.direction-editor-character-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.direction-editor-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
+}
+
+/* Inline "Regenerate visuals" form on a gallery card. */
+.regen-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border);
+}
+
+/* --- Job progress (JobProgress) --- */
+.job-progress {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-sm);
+}
+
+.job-progress-running {
+  color: var(--color-text-muted);
+  background: var(--color-surface-alt);
+}
+
+.job-progress-success {
+  color: var(--color-success);
+  background: #f0faf3;
+  border-color: #bfe3cb;
+}
+
+.job-progress-error {
+  color: var(--color-danger);
+  background: #fff3f3;
+  border-color: #f5c6c6;
+}
+
+.job-icon {
+  font-weight: 700;
+}
+
+.job-spinner {
+  width: 0.85rem;
+  height: 0.85rem;
+  border: 2px solid var(--color-border-strong);
+  border-top-color: var(--color-accent);
+  border-radius: var(--radius-pill);
+  animation: job-spin 0.7s linear infinite;
+}
+
+@keyframes job-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* --- Direction gallery (DirectionGallery) --- */
+.gallery-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: var(--space-4);
+  margin-top: var(--space-3);
+}
+
+.gallery-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.gallery-summary {
+  font-size: var(--fs-sm);
+  color: var(--color-text);
+}
+
+.gallery-positioning {
+  font-size: var(--fs-sm);
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+.gallery-copy {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--space-1) var(--space-3);
+  margin: var(--space-1) 0;
+  font-size: var(--fs-sm);
+}
+
+.gallery-copy dt {
+  color: var(--color-text-faint);
+  font-size: var(--fs-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  align-self: center;
+}
+
+.gallery-copy dd {
+  color: var(--color-text);
+  margin: 0;
+}
+
+.gallery-card-actions {
+  margin-top: auto;
+  padding-top: var(--space-2);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/* =========================================================================
+   WS-06 — refine / references / distinct direction cards
+   ========================================================================= */
+
+/* A neutral companion to .btn-primary (Refine, Generate another, …). */
+.btn-secondary {
+  background: var(--color-surface);
+  border-color: var(--color-border-strong);
+  color: var(--color-text);
+}
+
+.btn-secondary:hover {
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+}
+
+/* Make direction cards read as their own object, not the plain brief block. */
+.direction-card--rich {
+  background: var(--color-surface);
+  border-color: var(--color-border-strong);
+  border-left: 3px solid var(--color-accent);
+  box-shadow: var(--shadow-sm);
+  padding: var(--space-4) var(--space-4) var(--space-4) var(--space-5);
+}
+
+.direction-card--rich.approved {
+  border-left-color: var(--color-success);
+}
+
+/* Explicit "no preview generated" empty-state (keyless / dry-run legibility). */
+.gallery-no-preview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: var(--space-4);
+  margin: var(--space-1) 0;
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-alt);
+}
+
+.gallery-no-preview-title {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.gallery-no-preview-hint {
+  font-size: var(--fs-xs);
+  color: var(--color-text-faint);
+}
+
+.gallery-no-preview code {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+}
+
+/* Per-card Refine control. */
+.refine-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-alt);
+}
+
+.refine-keep {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+.refine-keep legend {
+  font-size: var(--fs-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--color-text-faint);
+  margin-bottom: var(--space-1);
+}
+
+.refine-keep-option {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--fs-sm);
+  color: var(--color-text);
+}
+
+.refine-tweak {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: var(--fs-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--color-text-faint);
+}
+
+.refine-tweak input {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--fs-sm);
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.refine-tweak input:focus {
+  outline: none;
+  border-color: var(--color-accent);
+}
+
+/* "used as reference" indicator on moodboard image assets. */
+.asset-reference-badge {
+  align-self: flex-start;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  cursor: help;
+}
+
+/* --- Audit trigger (AuditView) --- */
+.audit-form {
+  margin-bottom: var(--space-5);
+}
+
+.audit-form-row {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+}
+
+.audit-form-row .input {
+  flex: 1;
+}
+
+/* --- Global authoring forms (GlobalRulesView) --- */
+.global-forms {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: var(--space-4);
+  margin-top: var(--space-5);
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--color-border);
+}
+
+.global-form {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: var(--space-4);
+  background: var(--color-surface-alt);
+}
+
+.global-form h3 {
+  font-size: var(--fs-base);
+  margin-bottom: var(--space-2);
+}
+
+.global-form-actions {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+}
+
+.severity-select {
+  width: auto;
+  min-width: 8rem;
+}
+
+.radio-row {
+  display: flex;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.radio-option {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--fs-sm);
+  color: var(--color-text);
+}
+
+/* --- Palette & type board (PaletteBoard) — dense inline layout --- */
+.btn-sm {
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--fs-xs);
+}
+
+.palette-board {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: var(--space-2) 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface-alt);
+}
+
+.palette-board-empty {
+  font-size: var(--fs-sm);
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+.palette-board-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.palette-board-title {
+  margin: 0;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.palette-board-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+/* Compact horizontal wrap of semantic swatches */
+.swatch-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-2);
+}
+
+.swatch {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 2px var(--space-2) 2px 2px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  min-height: 1.75rem;
+}
+
+.swatch-locked {
+  border-color: var(--color-accent);
+  box-shadow: inset 0 0 0 1px var(--color-accent);
+}
+
+.swatch-chip {
+  flex: 0 0 auto;
+  width: 1.25rem;
+  height: 1.25rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+}
+
+.swatch-role {
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--color-text);
+  white-space: nowrap;
+}
+
+.swatch-hex {
+  padding: 0;
+  border: none;
+  background: none;
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.swatch-hex:hover {
+  color: var(--color-accent);
+}
+
+.swatch-hex-input {
+  min-width: 4.5rem;
+  width: 5.5rem;
+  padding: 1px var(--space-1);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  color: var(--color-text);
+}
+
+/* Lock is hover/focus-revealed; checked locks stay visible */
+.swatch-lock {
+  display: none;
+  align-items: center;
+  gap: 2px;
+  font-size: var(--fs-xs);
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.swatch-lock.is-locked,
+.swatch:hover .swatch-lock,
+.swatch:focus-within .swatch-lock {
+  display: inline-flex;
+}
+
+.swatch-lock input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+/* One-line type + shape summary */
+.palette-meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--color-border);
+}
+
+.type-specimen {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.type-specimen-heading {
+  margin: 0;
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.type-specimen-body {
+  margin: 0;
+  font-size: var(--fs-xs);
+  color: var(--color-text-muted);
+}
+
+/* Brand primitives: collapsed behind a disclosure by default */
+.brand-primitives {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.brand-primitives-toggle {
+  display: inline-flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  text-align: left;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.brand-primitives-toggle:hover {
+  color: var(--color-accent);
+}
+
+.brand-primitives-toggle-hint {
+  font-weight: 400;
+  color: var(--color-text-faint);
+}
+
+.brand-primitives-toggle-hint code {
+  font-size: 0.9em;
+}
+
+.brand-primitive-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-2);
+}
+
+.brand-primitive {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 2px var(--space-2) 2px 2px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+}
+
+.brand-primitive-name {
+  font-size: var(--fs-xs);
+  font-family: var(--font-mono, monospace);
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.shape-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.shape-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px var(--space-2);
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-surface);
+  font-size: var(--fs-xs);
+  color: var(--color-text-muted);
+}
+
+/* --- PaletteSwatchRow: default clean horizontal swatch row --- */
+.palette-swatch-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+}
+
+.palette-swatch-row__item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.palette-swatch-row__chip {
+  width: 1.5rem;
+  height: 1.5rem;
+  flex-shrink: 0;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+}
+
+.palette-swatch-row__role {
+  font-size: var(--fs-xs);
+  color: var(--color-text-muted);
+}
+
+.palette-swatch-row__hex {
+  font-size: var(--fs-xs);
+  color: var(--color-text);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  font-family: var(--font-mono, monospace);
+}
+
+.palette-swatch-row__hex:hover {
+  color: var(--color-accent);
+}
+
+.palette-swatch-row__brand-count {
+  font-size: var(--fs-xs);
+  color: var(--color-text-faint);
+}
+
+/* "Edit palette" toggle affordance */
+.palette-board__edit-toggle {
+  font-size: var(--fs-xs);
+  color: var(--color-accent);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: var(--space-1) 0;
+  align-self: flex-start;
+}
+
+.palette-board__edit-toggle:hover {
+  color: var(--color-accent-hover);
+}
+
+/* Dense board region — shown/hidden via the hidden attribute */
+.palette-board__edit-region {
+  margin-top: var(--space-3);
+}
+
+.palette-board__edit-region[hidden] {
+  display: none;
+}
+
+/* Generated style board figure on a gallery card. */
+/* --- Structured token editor (DirectionEditor) --- */
+.token-editor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface-alt);
+}
+
+.token-editor-legend {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.token-palette-rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.token-palette-row {
+  display: grid;
+  grid-template-columns: 6rem auto 1fr auto;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.token-palette-role {
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.token-color-input {
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  background: none;
+  cursor: pointer;
+}
+
+.token-hex-input {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+}
+
+.token-lock {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--fs-xs);
+  color: var(--color-text-muted);
+}
+
+.token-editor-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: var(--space-3);
+}
+
+/* --- Upload intent toggle (MoodboardUploader) --- */
+.upload-intent {
+  margin: 0 0 var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface-alt);
+}
+
+.upload-intent-legend {
+  padding: 0 var(--space-1);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+/* =========================================================================
+   Direction cards + version switcher + compare
+   Each direction is a bounded card; expanding reveals a version-switcher
+   strip and ONE version body (no stacked full cards).
+   ========================================================================= */
+
+/* --- Direction card shell (replaces flat .run-block for directions) --- */
+.direction-card-shell {
+  margin-top: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-sm, 0 1px 2px rgba(0, 0, 0, 0.04));
+  overflow: hidden;
+}
+
+.direction-card-shell.is-expanded {
+  border-color: var(--color-border-strong, var(--color-border));
+}
+
+.direction-card-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-3) var(--space-4);
+  border: none;
+  background: none;
+  cursor: pointer;
+  text-align: left;
+  color: var(--color-text);
+}
+
+.direction-card-shell.is-expanded .direction-card-toggle {
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface-alt);
+}
+
+.direction-card-heading {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.run-block-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-2) 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  text-align: left;
+  color: var(--color-text);
+}
+
+.run-block-name {
+  font-size: var(--fs-base);
+  font-weight: 600;
+}
+
+.run-block-latest {
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.run-block-meta {
+  margin-left: auto;
+  flex: 0 0 auto;
+  font-size: var(--fs-xs);
+  color: var(--color-text-faint);
+  white-space: nowrap;
+}
+
+/* --- Gallery interior: version switcher + selected body --- */
+.direction-gallery {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4) var(--space-4);
+}
+
+/* --- Segmented version pills (WS-01) --- */
+.version-pills-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.version-pills {
+  display: inline-flex;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+  background: var(--color-surface);
+}
+
+.version-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-3);
+  border: none;
+  border-right: 1px solid var(--color-border);
+  background: transparent;
+  cursor: pointer;
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.version-pill:last-child {
+  border-right: none;
+}
+
+.version-pill.is-selected {
+  background: var(--color-accent);
+  color: var(--color-surface);
+}
+
+.version-pill.is-selected .direction-row-head,
+.version-pill.is-selected .direction-row-approved {
+  color: inherit;
+  opacity: 0.8;
+}
+
+.version-pill.is-comparing {
+  box-shadow: inset 0 0 0 2px var(--color-accent-soft);
+}
+
+.version-pills-compare-toggle {
+  flex: 0 0 auto;
+}
+
+.version-pills-compare-toggle[aria-pressed="true"],
+.version-pills-compare-toggle.is-active {
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+  border-color: var(--color-accent);
+}
+
+.version-pills-compare-area {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-alt);
+  border: 1px solid var(--color-border);
+}
+
+.direction-row-chevron {
+  flex: 0 0 auto;
+  color: var(--color-text-faint);
+  font-size: var(--fs-sm);
+}
+
+.direction-row-approved {
+  color: var(--color-success);
+}
+
+/* "head" badge marking the current working version, distinct from "approved". */
+.direction-row-head {
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+/* --- Palette swatch strip (collapsed at-a-glance signal) --- */
+.palette-strip {
+  display: inline-flex;
+  flex: 0 0 auto;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+}
+
+.palette-strip-chip {
+  width: 16px;
+  height: 20px;
+}
+
+/* --- Compare checkbox on each version pill --- */
+.direction-compare {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex: 0 0 auto;
+  font-size: var(--fs-xs);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  user-select: none;
+}
+
+.direction-compare.is-disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.direction-selected.direction-card--rich {
+  padding: 0;
+  gap: 0;
+  border: none;
+  box-shadow: none;
+  background: transparent;
+}
+
+.direction-selected.is-comparing.direction-card--rich {
+  border-radius: var(--radius);
+  box-shadow: 0 0 0 2px var(--color-accent-soft);
+}
+
+.direction-row-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: 0;
+}
+
+/* Hero: images + element-feedback (single column) */
+.direction-hero {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* Dominant hero figure */
+.direction-hero-main {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.direction-hero-image,
+.direction-hero-main .asset-missing {
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  max-height: 58vh;
+  object-fit: cover;
+  object-position: top;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.direction-hero-main .asset-missing {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-faint);
+  font-size: var(--fs-xs);
+  font-style: italic;
+}
+
+.direction-hero-caption {
+  font-size: var(--fs-xs);
+  color: var(--color-text-muted);
+}
+
+/* Secondary thumbnail row */
+.direction-hero-thumbs {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.direction-hero-thumb {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  flex: 0 0 auto;
+}
+
+.direction-hero-thumb-image,
+.direction-hero-thumb .asset-missing {
+  width: 80px;
+  height: 60px;
+  object-fit: cover;
+  border-radius: var(--radius);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.direction-hero-thumb .asset-missing {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-faint);
+  font-size: var(--fs-xs);
+  font-style: italic;
+}
+
+.direction-hero-thumb-caption {
+  font-size: var(--fs-xs);
+  color: var(--color-text-muted);
+  max-width: 80px;
+}
+
+/* Direction header — eyebrow + title + description, above the version pills. */
+.direction-header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.direction-eyebrow {
+  font-size: var(--fs-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-faint);
+}
+
+/* Horizontal direction-title navigation (DirectionTitleNav). The active title
+   is first at full opacity; the rest are greyed but clickable, and FLIP-animate
+   into place when the active changes. */
+
+
+
+
+
+/* "+ New direction" at the end of the title list — a quiet accent action, not a
+   title. Sits on the type baseline with the tabs. */
+
+
+/* --- Floating compare bar --- */
+.compare-bar {
+  position: fixed;
+  left: 50%;
+  bottom: var(--space-4);
+  transform: translateX(-50%);
+  z-index: calc(var(--overlay-z) - 10);
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-pill);
+  background: var(--color-text);
+  color: var(--color-surface);
+  box-shadow: var(--shadow-lg, 0 8px 24px rgba(0, 0, 0, 0.25));
+}
+
+.compare-bar-count {
+  font-size: var(--fs-sm);
+  font-weight: 500;
+}
+
+.compare-bar-actions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+/* --- Full-screen compare overlay --- */
+.compare-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: var(--overlay-z);
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+}
+
+.compare-overlay-backdrop {
+  position: absolute;
+  inset: 0;
+  border: none;
+  padding: 0;
+  background: rgba(15, 23, 42, 0.55);
+  cursor: pointer;
+}
+
+.compare-overlay-panel {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  width: min(1400px, 96vw);
+  margin: var(--space-4);
+  max-height: calc(100vh - 2 * var(--space-4));
+  background: var(--color-bg);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg, 0 8px 24px rgba(0, 0, 0, 0.25));
+  overflow: hidden;
+}
+
+.compare-overlay-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.compare-overlay-head h2 {
+  font-size: var(--fs-lg);
+  margin: 0;
+}
+
+.compare-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  overflow: auto;
+}
+
+.compare-col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.compare-col-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  position: sticky;
+  top: 0;
+}
+
+.compare-col-title {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.compare-col-name {
+  font-size: var(--fs-base);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.compare-col-run {
+  font-size: var(--fs-xs);
+  color: var(--color-text-faint);
+}
+
+.compare-card.direction-card--rich {
+  padding: var(--space-4);
+}
+
+.compare-card .direction-row-body {
+  padding: 0;
+  border-top: none;
+}
+
+@media (max-width: 720px) {
+  .compare-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* --- Clickable thumbnail (opens the lightbox) --- */
+.asset-open {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: zoom-in;
+  border-radius: var(--radius-sm);
+}
+
+.asset-open:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* --- Full-screen image viewer (lightbox) --- */
+.lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: var(--lightbox-z);
+  display: flex;
+}
+
+.lightbox-backdrop {
+  position: absolute;
+  inset: 0;
+  border: none;
+  padding: 0;
+  background: rgba(10, 12, 20, 0.88);
+  cursor: zoom-out;
+}
+
+.lightbox-panel {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  gap: var(--space-3);
+  width: 100vw;
+  height: 100vh;
+  padding: var(--space-5);
+}
+
+.lightbox-toolbar {
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-3);
+  z-index: 2;
+  display: flex;
+  gap: var(--space-2);
+}
+
+.lightbox-action {
+  border: none;
+  border-radius: var(--radius-pill);
+  padding: var(--space-1) var(--space-3);
+  background: rgba(255, 255, 255, 0.14);
+  color: #f8fafc;
+  font-size: var(--fs-sm);
+  cursor: pointer;
+}
+
+.lightbox-action:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.26);
+}
+
+.lightbox-action:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* Left rail — a vertical strip of every image in the group. */
+.lightbox-thumbs {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: 104px;
+  flex: 0 0 104px;
+  overflow-y: auto;
+  padding-right: var(--space-1);
+}
+
+.lightbox-thumb {
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: var(--radius-sm);
+  background: none;
+  cursor: pointer;
+  overflow: hidden;
+  opacity: 0.55;
+  transition: opacity 120ms ease, border-color 120ms ease;
+}
+
+.lightbox-thumb:hover {
+  opacity: 1;
+}
+
+.lightbox-thumb.is-active {
+  opacity: 1;
+  border-color: var(--color-accent);
+}
+
+.lightbox-thumb-img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+}
+
+/* Center stage — the complete, uncropped image. */
+.lightbox-stage {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+}
+
+.lightbox-figure {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  max-width: 100%;
+  min-width: 0;
+}
+
+.lightbox-image {
+  display: block;
+  max-width: 100%;
+  max-height: calc(100vh - 2 * var(--space-5) - 3rem);
+  object-fit: contain;
+  border-radius: var(--radius-sm);
+}
+
+.lightbox-caption {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  color: #e5e7eb;
+  font-size: var(--fs-sm);
+  text-align: center;
+}
+
+.lightbox-counter {
+  color: #9ca3af;
+  font-variant-numeric: tabular-nums;
+}
+
+.lightbox-nav {
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
+  border: none;
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, 0.14);
+  color: #f8fafc;
+  font-size: 1.6rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.lightbox-nav:hover {
+  background: rgba(255, 255, 255, 0.26);
+}
+
+@media (max-width: 640px) {
+  .lightbox-panel {
+    flex-direction: column-reverse;
+    padding: var(--space-3);
+  }
+
+  .lightbox-thumbs {
+    flex-direction: row;
+    width: auto;
+    flex: 0 0 auto;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding-right: 0;
+  }
+
+  .lightbox-thumb {
+    flex: 0 0 64px;
+  }
+
+  .lightbox-image {
+    max-height: calc(100vh - 2 * var(--space-3) - 104px);
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Element-level visual feedback (WS-04): crop marquee + eyedropper + panel,
+   the per-image feedback affordance in the gallery, and the memory discard
+   thumbnail. Mirrors the neutral studio palette / gallery-* / memory-* naming.
+   --------------------------------------------------------------------------- */
+
+.gallery-feedback {
+  margin: var(--space-2) 0;
+  padding-top: var(--space-2);
+  border-top: 1px dashed var(--color-border);
+}
+.gallery-feedback-label {
+  display: block;
+  font-size: var(--fs-xs);
+  color: var(--color-text-muted);
+  margin-bottom: var(--space-1);
+}
+.gallery-feedback-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+.gallery-feedback-tabs .btn.is-active {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+  background: var(--color-accent-soft);
+}
+
+.element-feedback {
+  margin-top: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface-alt);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.ef-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+.ef-mode-btn {
+  padding: 0.2rem 0.6rem;
+  font-size: var(--fs-sm);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text);
+  cursor: pointer;
+}
+.ef-mode-btn.is-active {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+  background: var(--color-accent-soft);
+}
+.ef-hint {
+  font-size: var(--fs-xs);
+  color: var(--color-text-faint);
+}
+
+.ef-stage {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+  line-height: 0;
+  touch-action: none; /* let pointer drags draw a marquee, not scroll/pan */
+  user-select: none;
+}
+.ef-stage--crop {
+  cursor: crosshair;
+}
+.ef-stage--eyedropper {
+  cursor: cell;
+}
+.ef-image {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  -webkit-user-drag: none;
+}
+.ef-marquee {
+  position: absolute;
+  border: 1.5px solid var(--color-accent);
+  background: rgba(74, 69, 201, 0.15); /* --color-accent @ ~15% */
+  pointer-events: none;
+}
+
+.ef-note-copy {
+  font-size: var(--fs-xs);
+  color: var(--color-text-muted);
+  margin: 0;
+}
+.ef-error {
+  font-size: var(--fs-sm);
+  color: var(--color-danger);
+  margin: 0;
+}
+
+.ef-panel {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+}
+.ef-preview {
+  width: 96px;
+  height: 96px;
+  object-fit: contain;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg);
+}
+.ef-panel-fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  flex: 1 1 12rem;
+}
+.ef-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: var(--fs-xs);
+  color: var(--color-text-muted);
+}
+.ef-field input,
+.ef-field select {
+  font-size: var(--fs-sm);
+  padding: 0.3rem 0.4rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+.ef-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.ef-swatch {
+  display: inline-block;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+}
+.ef-swatch-hex {
+  font-size: var(--fs-sm);
+  color: var(--color-text);
+}
+
+.memory-thumb {
+  display: block;
+  width: 88px;
+  height: 88px;
+  object-fit: cover;
+  margin: var(--space-1) 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+}
+
+/* === Workspace (WS-01) ======================================================
+   Direction-first studio layout. These tokens are consumed by DirectionChrome,
+   DirectionWorkspace, and all downstream workstreams (WS-02 through WS-06).
+   Do not remove or rename once merged — downstream WS specs reference these
+   class names directly.
+   =========================================================================== */
+
+/* Canonical studio stacking ladder. Downstream workstreams must consume these
+   variables instead of introducing numeric z-index contracts:
+   toast 1000 > lightbox 500 > modal 400 > drawer 300 > overlay 200 > chrome 100. */
+:root {
+  --chrome-height: 60px;
+  --workspace-gap: var(--space-4);
+  --rail-width: 340px;             /* ChatRail width — the single workspace rail */
+  --toast-z: 1000;
+  --lightbox-z: 500;
+  --modal-z: 400;                  /* NewDirectionModal z-index — WS-04 consumes */
+  --drawer-z: 300;                 /* Chrome panel/drawer z-index — WS-05 consumes */
+  --overlay-z: 200;                /* CompareOverlay z-index */
+  --chrome-z: 100;                 /* Sticky chrome z-index */
+}
+
+/* Direction workspace root */
+.direction-workspace {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* Sticky DirectionChrome */
+.direction-chrome {
+  position: sticky;
+  top: 0;
+  z-index: var(--chrome-z);
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  padding: var(--space-3) 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  min-height: var(--chrome-height);
+}
+
+.chrome-direction-name {
+  font-size: var(--fs-2xl);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+  flex: 1;
+  /* Override the global h2 underline/spacing — the chrome carries its own
+     border, the title should not be underlined. */
+  border-bottom: none;
+  padding-bottom: 0;
+  margin-bottom: 0;
+}
+
+/* Secondary action row (Brief | Moodboard | Memory | Setup) */
+.chrome-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.chrome-actions .btn[aria-pressed="true"] {
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+  border-color: var(--color-accent);
+}
+
+/* Primary CTA host — "+ New direction" */
+.chrome-primary-cta {
+  margin-left: var(--space-3);
+}
+
+/* Chrome panel / drawer base (WS-01 placeholder; WS-05 upgrades) */
+.chrome-panel {
+  position: relative;
+  background: var(--color-surface-alt);
+  border-bottom: 1px solid var(--color-border);
+  padding: var(--space-4) var(--space-5);
+}
+
+.chrome-panel-placeholder {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  color: var(--color-text-muted);
+  font-size: var(--fs-sm);
+  font-style: italic;
+}
+
+.chrome-panel-placeholder-label {
+  flex: 1;
+}
+
+/* Workspace body — direction area + memory area */
+.workspace-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--workspace-gap);
+  padding: var(--space-5) 0 0;
+}
+
+/* Detail section override — removes top padding now that chrome provides header */
+.direction-detail-section {
+  padding-top: 0;
+}
+
+.direction-workspace {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* Rail-density composer (NotesComposer variant="rail") */
+.composer--rail {
+  margin: 0 0 var(--space-3);
+}
+
+.composer--rail .composer-row {
+  gap: var(--space-2);
+}
+
+.composer--rail .label {
+  font-size: var(--fs-xs);
+}
+
+.composer--rail .textarea {
+  max-height: 4.5rem;
+  font-size: var(--fs-sm);
+}
+
+.composer--rail .composer-actions {
+  margin-bottom: var(--space-2);
+}
+
+/* Rail-density memory panel */
+.memory-panel--rail {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: none;
+}
+
+.memory-panel--rail .memory-entry {
+  padding: var(--space-2);
+  margin-bottom: var(--space-1);
+}
+
+.memory-panel--rail .memory-body {
+  font-size: var(--fs-xs);
+}
+
+.memory-panel--rail .memory-meta {
+  font-size: var(--fs-xs);
+}
+
+/* Close row inside a chrome panel */
+.chrome-panel-close-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: var(--space-3);
+}
+
+/* Memory chrome panel body (full composer + full memory panel) */
+.chrome-panel-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  max-height: calc(100vh - var(--chrome-height) - 4rem);
+  overflow-y: auto;
+}
+
+.chrome-panel-body--empty {
+  color: var(--color-text-muted);
+  font-size: var(--fs-sm);
+  font-style: italic;
+  padding: var(--space-2) 0;
+}
+
+/* === WS-04: New Direction Modal =============================================
+ *
+ * OVERLAY STACKING LADDER (shared reference — update when adding new overlays)
+ * WS-06 owns the final polish pass; WS-04 anchors the seam.
+ *
+ *  var(--toast-z)    1000 → .toast-host
+ *  var(--lightbox-z)  500 → .lightbox
+ *  var(--modal-z)     400 → .new-direction-modal-backdrop
+ *  var(--drawer-z)    300 → .chrome-drawer (Brief/Moodboard, WS-05) + .chrome-drawer-backdrop
+ *  var(--overlay-z)   200 → .compare-overlay
+ *  calc(var(--overlay-z) - 10) → .compare-bar
+ *  var(--chrome-z)    100 → .direction-chrome
+ *
+ * Rule: a modal or overlay must never occlude .lightbox or .toast-host.
+ * When adding a new overlay, insert it here and update this comment.
+ * =========================================================================== */
+
+.new-direction-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: var(--modal-z);
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.new-direction-modal {
+  position: relative;
+  z-index: 1;                        /* stacks on top of its own backdrop */
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg, var(--radius));
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.24);
+  width: min(560px, calc(100vw - var(--space-6)));
+  max-height: calc(100vh - var(--space-8));
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.new-direction-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4) var(--space-4) var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.new-direction-modal-title {
+  font-size: var(--fs-base);
+  font-weight: 600;
+  margin: 0;
+}
+
+.new-direction-modal-close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: var(--fs-lg);
+  color: var(--color-text-faint);
+  line-height: 1;
+  padding: var(--space-1);
+  border-radius: var(--radius);
+}
+
+.new-direction-modal-close:hover {
+  color: var(--color-text);
+}
+
+/* Tab switcher strip */
+.new-direction-modal-tabs {
+  display: flex;
+  gap: 0;
+  padding: var(--space-3) var(--space-4) 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.new-direction-modal-tab {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  color: var(--color-text-faint);
+  margin-bottom: -1px;            /* overlap the container's border-bottom */
+}
+
+.new-direction-modal-tab:hover {
+  color: var(--color-text);
+}
+
+.new-direction-modal-tab.is-active {
+  color: var(--color-text);
+  border-bottom-color: var(--color-accent);
+}
+
+/* Tab body */
+.new-direction-modal-body {
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.new-direction-modal-hint {
+  font-size: var(--fs-sm);
+  color: var(--color-text-faint);
+  margin: 0;
+}
+
+/* Job progress inside the modal */
+.new-direction-modal-body .job-progress {
+  margin-top: var(--space-2);
+}
+
+/* === Drawers + Empty State (WS-05) ==========================================
+   Chrome drawer overlay: slides in over the workspace body; one open at a time.
+   Drawer z-index = var(--drawer-z) = 300 — above compare-overlay (200),
+   below modal (400), below toasts (1000).
+   =========================================================================== */
+
+/* Drawer backdrop — closes drawer on click */
+.chrome-drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: calc(var(--drawer-z) - 1);
+  background: rgba(0, 0, 0, 0.25);
+}
+
+/* Drawer panel — slides in from the right, full height below the chrome */
+.chrome-drawer {
+  position: fixed;
+  top: var(--chrome-height, 60px);
+  right: 0;
+  bottom: 0;
+  z-index: var(--drawer-z);
+  width: min(480px, 100vw);
+  background: var(--color-surface);
+  border-left: 1px solid var(--color-border);
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: chrome-drawer-slide-in 180ms ease-out;
+}
+
+@keyframes chrome-drawer-slide-in {
+  from { transform: translateX(100%); }
+  to   { transform: translateX(0); }
+}
+
+/* Drawer header row */
+.chrome-drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+
+.chrome-drawer-title {
+  font-size: var(--fs-base);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.chrome-drawer-close {
+  color: var(--color-text-faint);
+  padding: var(--space-1) var(--space-2);
+}
+
+.chrome-drawer-close:hover {
+  color: var(--color-text);
+}
+
+/* Drawer body — independently scrollable */
+.chrome-drawer-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* ---- Density modifiers for drawer hosts ---- */
+
+/* BriefEditor in a drawer — tighter fieldset padding, shorter textareas */
+.brief-editor--drawer .brief-form-section {
+  padding: var(--space-2) var(--space-3);
+}
+
+.brief-editor--drawer .brief-field-input {
+  font-size: var(--fs-sm);
+}
+
+.brief-editor--drawer textarea.brief-field-input {
+  min-height: 4rem;
+}
+
+.brief-editor--drawer .brief-editor-head {
+  padding-bottom: var(--space-2);
+}
+
+/* MoodboardUploader in a drawer — tighter dropzone */
+.uploader--drawer .dropzone {
+  padding: var(--space-3) var(--space-4);
+}
+
+.uploader--drawer .upload-intent {
+  padding: var(--space-2) var(--space-3);
+}
+
+.uploader--drawer .dropzone-lead {
+  font-size: var(--fs-sm);
+}
+
+/* AssetGallery in a drawer — denser thumbnail grid */
+.gallery--drawer {
+  grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+  gap: var(--space-2);
+}
+
+.gallery--drawer .asset-thumb {
+  width: 80px;
+  height: 80px;
+  object-fit: cover;
+}
+
+.gallery--drawer .asset-figure {
+  margin: 0;
+}
+
+.gallery--drawer .asset-caption {
+  font-size: var(--fs-xs);
+}
+
+.gallery--drawer .asset-reference-badge {
+  font-size: var(--fs-xs);
+  padding: 1px var(--space-1);
+}
+
+/* ---- Empty-state elevated setup-first layout ---- */
+
+.workspace-empty-state {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  padding: var(--space-5);
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+/* Brief + moodboard side by side on wider viewports, stacked on narrow */
+.empty-state-setup {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-5);
+  align-items: start;
+}
+
+@media (max-width: 720px) {
+  .empty-state-setup {
+    grid-template-columns: 1fr;
+  }
+}
+
+.empty-state-moodboard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* CTA row at the bottom of the empty state */
+.empty-state-cta-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border);
+}
+
+.empty-state-hint {
+  flex: 1;
+  font-size: var(--fs-sm);
+  color: var(--color-text-muted);
+  margin: 0;
+}
+
+/* === Overlay stacking order (WS-06 final polish) ============================
+   Canonical z-index tiers. Never set a component's z-index to a raw number —
+   always use these variables so the stacking order is auditable in one place.
+
+   Bottom → top:
+     --chrome-z    (100)  Sticky DirectionChrome (.direction-chrome)
+     --overlay-z   (200)  CompareOverlay (.compare-overlay)
+                   (190)  Compare bar (.compare-bar = calc(--overlay-z - 10))
+     --drawer-z    (300)  Brief/Moodboard drawers (.chrome-drawer + backdrop)
+     --modal-z     (400)  NewDirectionModal (.new-direction-modal-backdrop)
+     --lightbox-z  (500)  LightboxProvider (.lightbox)
+     --toast-z    (1000)  Toast host (.toast-host)
+
+   Invariant: toast > lightbox > modal > drawer > overlay > chrome.
+   Note: Memory/Setup inline panels (.chrome-panel) are position:relative —
+   they flow below the chrome header in document order, not on the z-stack.
+
+   WS-06 density adjustments: .chrome-actions gap bumped to --space-3;
+   .chrome-action-btn bordered density class added; .chrome-primary-cta .btn
+   solid-accent reinforcement added. No z-values changed.
+   =========================================================================== */
+
+/* =========================================================================
+   Key decisions checked list — shown at the top of the Memory drawer
+   ========================================================================= */
+.memory-decisions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin-bottom: var(--space-3);
+}
+
+.memory-decisions-title {
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+}
+
+.key-decision-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.key-decision {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  font-size: var(--fs-sm);
+  color: var(--color-text);
+}
+
+.key-decision__check {
+  color: var(--color-success);
+  font-weight: 700;
+  line-height: 1.4;
+  flex-shrink: 0;
+}
+
+.key-decision__body {
+  color: var(--color-text);
+}
+
+/* === WS-06: Chrome density — bordered icon-led action buttons ================
+   Replaces plain btn-ghost on the four secondary chrome actions (Brief /
+   Moodboard / Memory / Setup). All toggle behavior, aria-pressed, and onClick
+   handlers are untouched — only the presentation class changes.
+   =========================================================================== */
+
+/* Bordered, icon-led "dropdown-style" secondary action button */
+.chrome-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+}
+
+.chrome-action-btn:hover {
+  border-color: var(--color-border-strong);
+  background: var(--color-surface-alt);
+}
+
+/* Pressed state — mirrors the open drawer/panel visual treatment */
+.chrome-action-btn[aria-pressed="true"] {
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+  border-color: var(--color-accent);
+}
+
+/* Icon slot — keeps the SVG from stretching and hidden from accessibility tree */
+.chrome-action-icon {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  line-height: 0;
+}
+
+/* Primary CTA solid-accent reinforcement — makes "+ New direction" read as
+   the primary action on the row, distinct from the bordered secondary buttons */
+.chrome-primary-cta .btn {
+  background: var(--color-accent);
+  color: var(--color-surface);
+  border-color: var(--color-accent);
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--fs-sm);
+}
+
+.chrome-primary-cta .btn:hover {
+  background: var(--color-accent-hover);
+  border-color: var(--color-accent-hover);
+}
+
+/* === WS-06: Compare parity — hero height constraint inside two-up grid =======
+   Prevents an oversized hero from dominating the narrow compare column.
+   Scoped to .compare-card so the inline single-column gallery is unaffected.
+   =========================================================================== */
+.compare-card .direction-hero-image {
+  max-height: 300px;
+  object-fit: cover;
+}
+
+/* === WS-06 (studio-scoped-memory-ui): scope badges, selector, focus layout === */
+
+/* Scope badge — a small pill echoing .memory-kind density */
+.memory-scope {
+  display: inline-block;
+  padding: 0.05rem 0.4rem;
+  border-radius: var(--radius-pill);
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  border: 1px solid transparent;
+}
+
+.memory-scope--direction {
+  color: #7a4f00;
+  background: #fdf3e3;
+  border-color: #f0d5a0;
+}
+
+
+/* Scope selector row in the NotesComposer */
+.composer-scope {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+/* Retired scope-toggle styles (scope is location now) */
+.ef-scope-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--fs-sm);
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.ef-scope-toggle input[type="checkbox"] {
+  flex-shrink: 0;
+  width: 1rem;
+  height: 1rem;
+  accent-color: var(--color-accent);
+  cursor: pointer;
+}
+
+/* Direction + rail side-by-side composition in DirectionWorkspace */
+.workspace-focus-layout {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* =========================================================================
+   WS-06 (studio-lifecycle-ui): Edit / Promote / Delete lifecycle controls
+   ========================================================================= */
+
+.btn-danger {
+  background: var(--color-danger);
+  border-color: var(--color-danger);
+  color: #fff;
+}
+.btn-danger:hover {
+  filter: brightness(0.92);
+}
+
+/* Per-entry action menu (MemoryEntryActions) */
+.entry-actions {
+  position: relative;
+  margin-top: var(--space-2);
+}
+.entry-actions--rail {
+  display: inline-block;
+}
+.entry-actions__menu {
+  display: flex;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
+  flex-wrap: wrap;
+}
+.entry-actions__delete-trigger {
+  color: var(--color-danger);
+}
+
+/* Inline body/channel/polarity editor (entries + rules) */
+.entry-edit {
+  margin-top: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.entry-edit__body {
+  min-height: 4rem;
+}
+.entry-edit__row {
+  display: flex;
+  gap: var(--space-2);
+}
+.entry-edit__actions,
+.rule-actions__buttons {
+  display: flex;
+  gap: var(--space-2);
+  justify-content: flex-end;
+}
+.rule-actions {
+  flex-basis: 100%;
+}
+.rule-edit {
+  margin-top: var(--space-2);
+}
+
+/* Promote scope-target picker */
+.promote-picker {
+  margin-top: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.promote-picker__actions {
+  display: flex;
+  gap: var(--space-2);
+  justify-content: flex-end;
+}
+
+/* Destructive / force confirm (delete, remove-asset, remove-rule) */
+.lifecycle-confirm {
+  margin-top: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--color-danger);
+  border-radius: var(--radius);
+  background: #fdf1f1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.lifecycle-confirm__copy {
+  font-size: var(--fs-sm);
+  color: var(--color-text);
+  margin: 0;
+}
+.lifecycle-confirm__copy--force {
+  font-weight: 600;
+  color: var(--color-danger);
+}
+.lifecycle-confirm--force {
+  border-width: 2px;
+  background: #fbe4e4;
+}
+.lifecycle-confirm__actions {
+  display: flex;
+  gap: var(--space-2);
+  justify-content: flex-end;
+}
+
+/* Kept-crop remove control (AssetGallery) */
+.asset-remove-trigger {
+  align-self: flex-start;
+  color: var(--color-danger);
+}
+.lifecycle-confirm--asset {
+  margin: 0;
+}
+
+/* "Show history" toggle + retired-history section (MemoryPanel, full variant) */
+.memory-history {
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px dashed var(--color-border);
+}
+.memory-history__list {
+  margin-top: var(--space-2);
+  opacity: 0.75;
+}
+
+/* Rail compact modifiers */
+.entry-actions--rail .entry-actions__toggle {
+  padding: 0 var(--space-1);
+  font-size: var(--fs-sm);
+}
+.memory-panel--rail .entry-actions__menu {
+  font-size: var(--fs-xs);
+}
+
+/* =========================================================================
+   WS-04 (studio-chat-rail): chat rail — the single rail beside the direction.
+   Additive, namespaced .chat-* blocks only — shared overlay stacking (see the
+   ladder above .new-direction-modal-backdrop) is untouched.
+   ========================================================================= */
+
+.chat-rail {
+  display: flex;
+  flex: 0 0 var(--rail-width);
+  flex-direction: column;
+  min-width: 0;
+  overflow-y: auto;
+  border-left: 1px solid var(--color-border);
+  padding-left: var(--space-4);
+}
+
+.chat-rail__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-2) 0 var(--space-3);
+}
+
+.chat-rail__title {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-faint);
+}
+
+.chat-rail__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  overflow-y: auto;
+}
+
+.chat-message {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius);
+  font-size: var(--fs-sm);
+}
+
+.chat-message--user {
+  align-self: flex-end;
+  background: var(--color-surface-alt);
+}
+
+.chat-message--assistant {
+  align-self: stretch;
+  border: 1px solid var(--color-border);
+}
+
+.chat-message__body {
+  white-space: pre-wrap;
+}
+
+.chat-message__tool-calls {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
+}
+
+.tool-call-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-xs);
+}
+
+.tool-call-card--done {
+  color: var(--color-text-muted);
+  background: var(--color-surface-alt);
+}
+
+.tool-call-card--error {
+  color: var(--color-danger);
+}
+
+.tool-call-card--pending {
+  border-color: var(--color-danger);
+}
+
+.tool-call-card--job {
+  padding: 0;
+  border: none;
+  background: transparent;
+}
+
+.tool-call-card__name {
+  font-weight: 600;
+}
+
+.tool-call-card__args,
+.tool-call-card__text {
+  color: var(--color-text-muted);
+  word-break: break-word;
+}
+
+/* Reuses the .lifecycle-confirm token set (see the WS-06 section above); the
+   .chat-confirm* namespace is additive so this block can diverge later
+   without touching the shared MemoryEntryActions/GlobalRulesView styles. */
+.chat-confirm {
+  margin-top: var(--space-1);
+}
+
+.chat-scope-chip {
+  display: inline-block;
+  margin-bottom: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-alt);
+  color: var(--color-text-muted);
+  font-size: var(--fs-xs);
+  font-family: var(--font-mono, monospace);
+}
+
+.chat-composer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--color-border);
+}
+
+.chat-composer__input {
+  min-height: 3.5rem;
+  resize: vertical;
+}
+
+.chat-composer__send {
+  align-self: flex-end;
+}
+
+.chat-unavailable {
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface-alt);
+  color: var(--color-text-muted);
+  font-size: var(--fs-sm);
+}
+
+/* =========================================================================
+   WS-06 (studio-asset-shelf): the extract sub-panel on ElementFeedback's crop
+   panel, and the direction-scoped AssetShelf mounted under DirectionGallery.
+   Additive, namespaced .ef-extract-, .asset-shelf-, .asset-card- blocks only —
+   the existing .asset-* (moodboard) classes and shared overlay stacking are
+   untouched; the retire confirm reuses the existing .lifecycle-confirm* tokens.
+   ========================================================================= */
+
+.ef-extract {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  padding: var(--space-3);
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+}
+
+.ef-extract__hint {
+  font-size: var(--fs-xs);
+  color: var(--color-text-muted);
+  margin: 0;
+}
+
+.ef-extract__fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.asset-shelf {
+  margin-top: var(--space-4);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.asset-shelf__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.asset-shelf__title {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-faint);
+}
+
+.asset-shelf__empty {
+  font-size: var(--fs-sm);
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+.asset-shelf__cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: var(--space-3);
+}
+
+.asset-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+}
+
+.asset-card__thumb {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-alt);
+  display: block;
+}
+
+/* =========================================================================
+   WS-08 (studio-surface-board): the gap/request board mounted beside the
+   global-rules surface. Additive, namespaced .surface-board* blocks only —
+   existing tokens, no new CSS custom properties, no z-index (in-flow); the
+   curation edit/retire controls reuse the existing .entry-edit- and
+   .lifecycle-confirm- token set and the add form reuses .global-form-.
+   ========================================================================= */
+
+.surface-board {
+  margin-top: var(--space-5);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border);
+}
+
+.surface-board__rows {
+  margin-top: var(--space-2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.surface-board__row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.surface-board__row-main {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.surface-board__id {
+  font-size: var(--fs-sm);
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+  padding: 0.05rem var(--space-2);
+  border-radius: var(--radius-sm);
+}
+
+.surface-board__kind {
+  font-size: var(--fs-xs);
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.surface-board__chip {
+  display: inline-block;
+  padding: 0.05rem 0.5rem;
+  border-radius: var(--radius-pill);
+  font-size: 0.7rem;
+  font-weight: 600;
+  border: 1px solid transparent;
+}
+.surface-board__chip--bound    { color: #2d7d46; background: #f0faf3; border-color: #bfe3cb; }
+.surface-board__chip--derived  { color: #555;    background: #f1f1f1; border-color: #dcdcdc; }
+.surface-board__chip--gap      { color: var(--color-danger); background: #fff3f3; border-color: #f5c6c6; }
+.surface-board__chip--pending  { color: var(--color-text-muted); background: var(--color-surface-alt); border-color: var(--color-border); }
+
+.surface-board__taxonomy {
+  display: inline-block;
+  padding: 0.05rem 0.5rem;
+  border-radius: var(--radius-pill);
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--color-warn);
+  background: #fdf6e0;
+  border: 1px solid #ecd9a0;
+}
+
+.surface-board__value-swatch {
+  display: inline-block;
+  width: 2rem;
+  height: 2rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  object-fit: cover;
+}
+
+.surface-board__value-text {
+  font-size: var(--fs-sm);
+  color: var(--color-text);
+}
+
+.surface-board__request {
+  font-size: var(--fs-sm);
+  color: var(--color-text-muted);
+  margin: 0;
+}
+
+.surface-board__hint {
+  font-size: var(--fs-xs);
+  color: var(--color-text-faint);
+  margin: 0;
+}
+
+.surface-board__row-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.surface-board__form-error {
+  font-size: var(--fs-sm);
+  color: var(--color-danger);
+  margin: 0;
+}
+
+.asset-card__pending {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 4 / 3;
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-alt);
+  color: var(--color-text-faint);
+  font-size: var(--fs-xs);
+  font-style: italic;
+  text-align: center;
+  padding: var(--space-2);
+}
+
+/* Disambiguated no-image states (asset-extraction diagnosability fix):
+   a keyed-but-FAILED generation reads as an error, never as a key problem. */
+.asset-card__pending--failed {
+  border-color: var(--color-danger, #c0392b);
+  color: var(--color-danger, #c0392b);
+  font-style: normal;
+}
+
+/* Image present but generation degraded (e.g. transparent background
+   unsupported → opaque retry) — a quiet caption under the thumbnail. */
+.asset-card__degraded {
+  margin: var(--space-1) 0 0;
+  font-size: var(--fs-xs);
+  color: var(--color-text-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.asset-card__identity {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.asset-card__name {
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.asset-card__pill {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-alt);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.asset-card__description {
+  font-size: var(--fs-xs);
+  color: var(--color-text-muted);
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.asset-card__tweak {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.asset-card__tweak input[type="text"] {
+  flex: 1 1 10rem;
+  font-size: var(--fs-sm);
+  padding: 0.3rem 0.4rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+.asset-card__remember {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--fs-xs);
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.asset-card__actions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+/* =========================================================================
+   WS-09 (studio-scan-triage-curation): the scan trigger + review checklist
+   mounted directly below the surface board. Additive, namespaced
+   .scan-triage* blocks only — existing tokens, no new CSS custom properties,
+   no z-index (in-flow).
+   ========================================================================= */
+
+.scan-triage {
+  margin-top: var(--space-5);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border);
+}
+
+.scan-triage__form {
+  margin-bottom: var(--space-4);
+}
+
+.scan-triage__checklist {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.scan-triage__rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.scan-triage__row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.scan-triage__thumb {
+  width: 3rem;
+  height: 3rem;
+  object-fit: cover;
+  border-radius: var(--radius);
+  border: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+
+.scan-triage__meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  font-size: var(--fs-sm);
+}
+
+.scan-triage__id {
+  font-size: var(--fs-sm);
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+  padding: 0.05rem var(--space-2);
+  border-radius: var(--radius-sm);
+}
+
+.scan-triage__badge--refined,
+.scan-triage__badge--floor {
+  display: inline-block;
+  padding: 0.05rem 0.5rem;
+  border-radius: var(--radius-pill);
+  font-size: 0.68rem;
+  font-weight: 600;
+}
+
+.scan-triage__badge--refined {
+  color: var(--color-accent);
+  background: var(--color-accent-soft);
+}
+
+.scan-triage__badge--floor {
+  color: var(--color-text-muted);
+  background: var(--color-surface-alt);
+  border: 1px solid var(--color-border);
+}
+
+.scan-triage__hint {
+  font-size: var(--fs-xs);
+  color: var(--color-text-faint);
+  margin: 0 0 var(--space-2);
+}
+
+.scan-triage__note {
+  font-size: var(--fs-xs);
+  color: var(--color-text-muted);
+}
+
+.scan-triage__apply {
+  align-self: flex-start;
+}
+
+/* =========================================================================
+   WS-07 (studio-scan-quality): the three additive quality-signal blocks on
+   ScanTriage (overlay warning, skip summary, migration findings) plus
+   SurfaceBoard's confirm-gated bulk retire. Additive, namespaced blocks only
+   — existing tokens, no new CSS custom properties, no z-index (in-flow); the
+   bulk retire reuses the existing .lifecycle-confirm* token set.
+   ========================================================================= */
+
+.scan-triage__overlay {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-danger);
+  border-radius: var(--radius-sm);
+  color: var(--color-danger);
+  background: #fff3f3;
+  font-size: var(--fs-sm);
+}
+
+.scan-triage__skips,
+.scan-triage__migrations {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+  font-size: var(--fs-sm);
+}
+
+.scan-triage__skip-row,
+.scan-triage__migration-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.scan-triage__advisory {
+  font-size: var(--fs-xs);
+  color: var(--color-text-faint);
+  margin: 0;
+  font-style: italic;
+}
+
+.surface-board__bulk {
+  margin-top: var(--space-3);
+}
+
+.surface-board__bulk-actions {
+  margin-top: 0;
+}

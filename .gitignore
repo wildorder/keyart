@@ -1,0 +1,43 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+*.tsbuildinfo
+
+# Logs
+build-logs/
+*.log
+npm-debug.log*
+
+# Environment
+.env
+.env.*
+!.env.keyart.example
+
+# OS / editor
+.DS_Store
+Thumbs.db
+
+# Local agent/editor settings
+.claude/settings.local.json
+
+# Internal build-pipeline workflow — local-only, deliberately not published.
+# These drive how this repo is developed; they are not part of the product and
+# would only add noise to a public clone. See CONTRIBUTING.md for the gate that
+# every change must actually clear.
+.agents/
+.claude/
+.cursor/
+.gemini/
+pipeline.config.json
+skills/
+AGENTS.md
+CLAUDE.md
+tasks/
+docs/programs/
+docs/snapshots/
+docs/as-built.md
+docs/vision.md
+docs/program-pipeline-bug-report-2026-08-19.md

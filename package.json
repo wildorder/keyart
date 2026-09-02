@@ -1,0 +1,86 @@
+{
+  "name": "keyart",
+  "version": "0.1.0",
+  "type": "module",
+  "license": "Apache-2.0",
+  "description": "A local creative director for AI-built prototypes — turn a rough brief into visual directions, an exact brand.css, style guides, and coding-agent rules.",
+  "keywords": [
+    "branding",
+    "design-tokens",
+    "design-system",
+    "style-guide",
+    "ai",
+    "openai",
+    "cli",
+    "mcp",
+    "cursor",
+    "brand"
+  ],
+  "author": "Tim OConnell <tim@wingitlabs.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wildorder/keyart.git"
+  },
+  "homepage": "https://github.com/wildorder/keyart#readme",
+  "bugs": {
+    "url": "https://github.com/wildorder/keyart/issues"
+  },
+  "bin": {
+    "keyart": "./bin/keyart.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./server": {
+      "types": "./dist/server.d.ts",
+      "import": "./dist/server.js"
+    }
+  },
+  "scripts": {
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
+    "build": "npm run clean && vite build && tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:integration": "vitest run src/integration/",
+    "prepublishOnly": "npm run build && npm test && npm run test:package",
+    "test:package": "node scripts/smoke-package.mjs"
+  },
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "files": [
+    "NOTICE",
+    "dist",
+    "bin",
+    "templates",
+    "dist/ui"
+  ],
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.30.0",
+    "busboy": "^1.6.0",
+    "commander": "^13.1.0",
+    "culori": "4.0.2",
+    "openai": "^4.96.0",
+    "react-markdown": "^10.1.0",
+    "yaml": "^2.9.0",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/busboy": "^1.5.4",
+    "@types/culori": "4.0.1",
+    "@types/node": "^22.15.18",
+    "@types/react": "^19.2.16",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^4.7.0",
+    "playwright": "^1.52.0",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "typescript": "^5.8.3",
+    "vite": "^6.4.3",
+    "vitest": "^3.1.4"
+  }
+}

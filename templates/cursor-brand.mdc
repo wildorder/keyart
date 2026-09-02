@@ -1,0 +1,32 @@
+---
+description: Brand visual system rules for {{projectName}}. Apply to all UI components, pages, and styling.
+globs: ["**/*.tsx", "**/*.css", "**/*.scss", "**/*.module.css"]
+---
+
+# {{directionName}} — Cursor Brand Rules
+
+## Visual Style
+
+{{visualStyle}}
+
+## Positioning
+
+{{positioning}}
+
+## Design Rules
+
+{{designRulesList}}
+
+## Anti-Rules (Never Do This)
+
+{{antiRulesList}}
+
+## Copy Voice
+
+- Headline example: "{{copyHeadline}}"
+- Subheadline example: "{{copySubheadline}}"
+- CTA example: "{{copyCta}}"
+
+## CSS Variables
+
+Reference `brand.css` for canonical token values. Use `var(--brand-*)` tokens instead of hardcoded colors, fonts, or spacing values.

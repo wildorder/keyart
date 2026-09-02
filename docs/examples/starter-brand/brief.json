@@ -1,0 +1,20 @@
+{
+  "oneLiner": "Mossling is an indoor-plant care app that tells you what your plant needs today.",
+  "audiences": [
+    {
+      "who": "first-time plant owners",
+      "need": "confidence they are not about to kill another plant"
+    },
+    {
+      "who": "people who have already killed a fern",
+      "context": "returning after a past failure, a little gun-shy"
+    }
+  ],
+  "tone": ["warm", "calm", "quietly expert"],
+  "values": ["patience", "honesty over hype", "small consistent wins"],
+  "colorIntent": "soft living greens with a warm paper ground",
+  "typeIntent": "friendly humanist sans with a soft editorial serif for headlines",
+  "moodImagery": "sunlit windowsills, terracotta, hand-drawn leaf textures — never sterile stock photography",
+  "constraints": ["must read as trustworthy, not twee", "no cartoon mascots"],
+  "surfaces": ["mobile app", "marketing homepage"]
+}

@@ -11,7 +11,7 @@ Your AI-built prototype looks like every other AI-built prototype. Keyart gives 
 ## Install
 
 ```bash
-npm install -D keyart
+npm install -D @wildorder/keyart
 ```
 
 Requires **Node.js 22.18+** (matches `engines` in `package.json`). You'll want an `OPENAI_API_KEY` for the parts that matter — generating visual directions and extracting real tokens from them. Without one, every command still runs in a deterministic **dry-run** mode (useful for CI, agents, and kicking the tires — see [With and without a key](#with-and-without-a-key) for what that honestly gets you). `keyart audit` and `keyart surface scan` additionally need Playwright — both the npm package and a browser binary: `npm i -D playwright && npx playwright install chromium`.

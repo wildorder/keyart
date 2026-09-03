@@ -94,14 +94,14 @@ async function loadRepoEnv() {
 
 /**
  * `keyart.config.ts` (written by `init`) does `import { defineKeyartConfig }
- * from "keyart"` — exactly like any real consuming project. A temp project
- * has no npm install step, so this links the temp project's node_modules/keyart
+ * from "@wildorder/keyart"` — exactly like any real consuming project. A temp project
+ * has no npm install step, so this links the temp project's node_modules/@wildorder/keyart
  * straight at this checkout (Node's own module resolution, no new dependency).
  */
 async function linkLocalPackage(tempDir) {
   const nodeModules = path.join(tempDir, "node_modules");
-  await fs.mkdir(nodeModules, { recursive: true });
-  const target = path.join(nodeModules, "keyart");
+  await fs.mkdir(path.join(nodeModules, "@wildorder"), { recursive: true });
+  const target = path.join(nodeModules, "@wildorder", "keyart");
   await fs.symlink(
     REPO_ROOT,
     target,

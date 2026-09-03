@@ -30,7 +30,7 @@ describe("config-template", () => {
     };
     const text = renderConfig(answers);
     expect(text).toContain(
-      'import { defineKeyartConfig } from "keyart";',
+      'import { defineKeyartConfig } from "@wildorder/keyart";',
     );
     expect(text).toContain('"Acme"');
     expect(text).toContain('framework: "vite"');
@@ -73,7 +73,7 @@ describe("config-template", () => {
     expect(text).not.toContain("global:");
     expect(text).toContain('store: { driver: "file" }');
     expect(text).toContain(
-      'import { defineKeyartConfig } from "keyart";',
+      'import { defineKeyartConfig } from "@wildorder/keyart";',
     );
     // Never leaks a key.
     expect(text).not.toContain("OPENAI_API_KEY");

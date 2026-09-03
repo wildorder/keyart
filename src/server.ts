@@ -1,5 +1,5 @@
 /**
- * `keyart/server` — the UNSTABLE embedding surface.
+ * `@wildorder/keyart/server` — the UNSTABLE embedding surface.
  *
  * Everything the `keyart serve` command composes, exported so an embedding
  * host (for example a hosted deployment) can assemble the same HTTP surface

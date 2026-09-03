@@ -9,7 +9,7 @@ describe("mergeMcpConfig", () => {
     expect(result.content!.endsWith("\n")).toBe(true);
     expect(JSON.parse(result.content!)).toEqual({
       mcpServers: {
-        keyart: { command: "npx", args: ["keyart", "mcp"] },
+        keyart: { command: "npx", args: ["@wildorder/keyart", "mcp"] },
       },
     });
   });
@@ -38,7 +38,7 @@ describe("mergeMcpConfig", () => {
 
   it("is idempotent when the keyart entry already matches", () => {
     const raw = JSON.stringify({
-      mcpServers: { keyart: { command: "npx", args: ["keyart", "mcp"] } },
+      mcpServers: { keyart: { command: "npx", args: ["@wildorder/keyart", "mcp"] } },
     });
     const result = mergeMcpConfig(raw);
     expect(result.action).toBe("unchanged");

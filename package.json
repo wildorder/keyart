@@ -1,6 +1,9 @@
 {
-  "name": "keyart",
+  "name": "@wildorder/keyart",
   "version": "0.1.0",
+  "publishConfig": {
+    "access": "public"
+  },
   "type": "module",
   "license": "Apache-2.0",
   "description": "A local creative director for AI-built prototypes — turn a rough brief into visual directions, an exact brand.css, style guides, and coding-agent rules.",

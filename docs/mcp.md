@@ -18,7 +18,7 @@ Each facade takes forgiving **object input** `{ command, input?, cwd? }` and can
 `keyart init` scaffolds (or JSON-merges) the server entry into `.cursor/mcp.json` automatically. To wire it up by hand, add:
 
 ```json
-{ "mcpServers": { "keyart": { "command": "npx", "args": ["keyart", "mcp"] } } }
+{ "mcpServers": { "keyart": { "command": "npx", "args": ["@wildorder/keyart", "mcp"] } } }
 ```
 
 `init` preserves any other servers already in `.cursor/mcp.json`. A pre-existing custom `keyart` entry is only replaced when you pass `keyart init --force`.

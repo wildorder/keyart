@@ -75,7 +75,7 @@ function q(value: string): string {
 
 /**
  * Render the populated keyart.config.ts TEXT: imports defineKeyartConfig
- * from "keyart" and calls it with the object from buildConfigObject. The
+ * from "@wildorder/keyart" and calls it with the object from buildConfigObject. The
  * byte-shape matches templates/keyart.config.ts aside from the project block.
  * MUST NOT contain the API key or the string `OPENAI_API_KEY`.
  */
@@ -110,7 +110,7 @@ export function renderConfigFromObject(config: KeyartConfig): string {
   const storeLine =
     store !== undefined ? `\n  store: { driver: ${q(store.driver)} },` : "";
 
-  return `import { defineKeyartConfig } from "keyart";
+  return `import { defineKeyartConfig } from "@wildorder/keyart";
 
 export default defineKeyartConfig({
   project: { name: ${q(project.name)}, type: ${q(project.type)}, framework: ${q(

@@ -309,7 +309,7 @@ Default models:
 Override in `keyart.config.ts`:
 
 ```ts
-import { defineKeyartConfig } from "keyart";
+import { defineKeyartConfig } from "@wildorder/keyart";
 
 export default defineKeyartConfig({
   // ...

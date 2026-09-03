@@ -125,7 +125,7 @@ describe("runInit", () => {
     const mcp = JSON.parse(await readFile(".cursor/mcp.json"));
     expect(mcp.mcpServers.keyart).toEqual({
       command: "npx",
-      args: ["keyart", "mcp"],
+      args: ["@wildorder/keyart", "mcp"],
     });
     expect(result.created).toContain(".cursor/mcp.json");
   });

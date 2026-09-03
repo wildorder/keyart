@@ -106,12 +106,12 @@ function formatConfigLoadError(configPath: string, err: unknown): Error {
   }
 
   if (
-    message.includes("Cannot find package 'keyart'") ||
-    message.includes('Cannot find module \'keyart\'')
+    message.includes("Cannot find package '@wildorder/keyart'") ||
+    message.includes("Cannot find module '@wildorder/keyart'")
   ) {
     return new Error(
-      `Cannot load ${configPath}: the "keyart" package is not installed. ` +
-        "Run `npm install keyart` or `npm link keyart` from the project root.",
+      `Cannot load ${configPath}: the "@wildorder/keyart" package is not installed. ` +
+        "Run `npm install @wildorder/keyart` or `npm link @wildorder/keyart` from the project root.",
     );
   }
 

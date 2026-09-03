@@ -158,7 +158,7 @@ function binShimPath(proj) {
 }
 
 function keyartModulePath(proj) {
-  return path.join(proj, "node_modules", "keyart", "bin", "keyart.js");
+  return path.join(proj, "node_modules", "@wildorder", "keyart", "bin", "keyart.js");
 }
 
 function runKeyart(proj, env, args, opts = {}) {
@@ -255,7 +255,7 @@ async function main() {
 
     const env = buildEnv();
     const installedVersion = JSON.parse(
-      fs.readFileSync(path.join(proj, "node_modules", "keyart", "package.json"), "utf8"),
+      fs.readFileSync(path.join(proj, "node_modules", "@wildorder", "keyart", "package.json"), "utf8"),
     ).version;
 
     await step("bin shim exists and works", () => {

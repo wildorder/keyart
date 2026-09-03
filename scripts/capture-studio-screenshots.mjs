@@ -41,8 +41,8 @@ async function importDist(relPath) {
 
 async function linkLocalPackage(tempDir) {
   const nodeModules = path.join(tempDir, "node_modules");
-  await fs.mkdir(nodeModules, { recursive: true });
-  const target = path.join(nodeModules, "keyart");
+  await fs.mkdir(path.join(nodeModules, "@wildorder"), { recursive: true });
+  const target = path.join(nodeModules, "@wildorder", "keyart");
   await fs.symlink(
     REPO_ROOT,
     target,

@@ -1,7 +1,11 @@
-/** The server entry written into .cursor/mcp.json. */
+/** The server entry written into .cursor/mcp.json. The FULL scoped package
+ * name, not the bare `keyart` bin: `npx keyart` in a project without the
+ * package installed would fall back to fetching the unrelated (or squattable)
+ * registry name `keyart`, while `npx @wildorder/keyart` resolves the local
+ * install first and the real package otherwise. */
 export const KEYART_MCP_SERVER = {
   command: "npx",
-  args: ["keyart", "mcp"],
+  args: ["@wildorder/keyart", "mcp"],
 } as const;
 
 export type McpMergeAction =

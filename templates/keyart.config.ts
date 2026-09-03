@@ -1,4 +1,4 @@
-import { defineKeyartConfig } from "keyart";
+import { defineKeyartConfig } from "@wildorder/keyart";
 
 export default defineKeyartConfig({
   project: { name: "My Project", type: "prototype", framework: "next" },

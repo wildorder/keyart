@@ -79,7 +79,7 @@ function ensureBuilt(): void {
 }
 
 // Dependency-free, annotation-free config (valid under Node type-stripping):
-// the scaffolded template imports defineKeyartConfig from "keyart", which
+// the scaffolded template imports defineKeyartConfig from "@wildorder/keyart", which
 // is not resolvable inside a tmp project, so we overwrite it before `explore`.
 const ITEST_CONFIG = `export default {
   project: { name: "MCP ITest", type: "prototype", framework: "next" },

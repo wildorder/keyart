@@ -100,19 +100,37 @@ function preflight() {
 // Pack + install
 // ---------------------------------------------------------------------------
 
+/** First complete top-level JSON array in `text`, by string-aware depth scan. */
+function firstJsonArray(text) {
+  const start = text.indexOf("[");
+  if (start === -1) throw new Error("no JSON array on npm pack stdout");
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let i = start; i < text.length; i++) {
+    const c = text[i];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (c === "\\") escaped = true;
+      else if (c === '"') inString = false;
+    } else if (c === '"') inString = true;
+    else if (c === "[" || c === "{") depth++;
+    else if (c === "]" || c === "}") {
+      depth--;
+      if (depth === 0) return text.slice(start, i + 1);
+    }
+  }
+  throw new Error("unterminated JSON array on npm pack stdout");
+}
+
 function packTarball(tmpRoot) {
   const result = run("npm", ["pack", "--json", "--pack-destination", tmpRoot], {
     cwd: repoRoot,
   });
-  // Newer npm versions append human-readable notice/warn text around the
-  // JSON on stdout: drop npm-prefixed lines, then parse the bracketed span.
-  const clean = result.stdout
-    .split("\n")
-    .filter((line) => !/^npm (notice|warn|error)\b/.test(line))
-    .join("\n");
-  const start = clean.indexOf("[");
-  const end = clean.lastIndexOf("]");
-  const [packed] = JSON.parse(clean.slice(start, end + 1));
+  // Newer npm versions pollute `pack --json` stdout (notice lines; under
+  // npm@latest the array is printed twice), so extract the FIRST complete
+  // top-level JSON array by bracket-depth scan rather than trusting offsets.
+  const [packed] = JSON.parse(firstJsonArray(result.stdout));
   const { filename, entryCount, unpackedSize } = packed;
   console.log(`packed ${filename}: ${entryCount} files, ${unpackedSize} bytes unpacked`);
   return { filename, entryCount, unpackedSize, tarballPath: path.join(tmpRoot, filename) };

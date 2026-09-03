@@ -31,9 +31,10 @@ jobs:
           node-version: 24.x
           cache: npm
 
-      # OIDC trusted publishing needs npm >= 11.5.1; pin past it explicitly
-      # rather than trusting whatever the runner image bundles.
-      - run: npm install -g npm@latest
+      # OIDC trusted publishing needs npm >= 11.5.1. Pin the MAJOR rather
+      # than @latest: a surprise npm major changed `pack --json` output and
+      # broke the gate once already.
+      - run: npm install -g npm@11
 
       # Reproducible install off the committed lockfile.
       - run: npm ci

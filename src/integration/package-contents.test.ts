@@ -26,16 +26,36 @@ function packManifest(): PackResult {
     stdio: ["ignore", "pipe", "pipe"],
     shell: process.platform === "win32",
   });
-  // Newer npm versions append human-readable notice/warn text around the
-  // JSON on stdout (seen with npm@latest in the release workflow): drop
-  // npm-prefixed lines, then parse exactly the bracketed span.
-  const clean = stdout
-    .split("\n")
-    .filter((line) => !/^npm (notice|warn|error)\b/.test(line))
-    .join("\n");
-  const start = clean.indexOf("[");
-  const end = clean.lastIndexOf("]");
-  return JSON.parse(clean.slice(start, end + 1))[0] as PackResult;
+  return JSON.parse(firstJsonArray(stdout))[0] as PackResult;
+}
+
+/**
+ * Extract the FIRST complete top-level JSON array from `text` by bracket-depth
+ * scan (string- and escape-aware). Newer npm versions pollute `pack --json`
+ * stdout — notice/warn lines, and under npm@latest the array printed TWICE —
+ * so neither "parse everything" nor "first [ to last ]" survives; only the
+ * first balanced value is trustworthy.
+ */
+function firstJsonArray(text: string): string {
+  const start = text.indexOf("[");
+  if (start === -1) throw new Error("no JSON array on npm pack stdout");
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let i = start; i < text.length; i++) {
+    const c = text[i];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (c === "\\") escaped = true;
+      else if (c === '"') inString = false;
+    } else if (c === '"') inString = true;
+    else if (c === "[" || c === "{") depth++;
+    else if (c === "]" || c === "}") {
+      depth--;
+      if (depth === 0) return text.slice(start, i + 1);
+    }
+  }
+  throw new Error("unterminated JSON array on npm pack stdout");
 }
 
 /** Fails loudly (never skips) if `dist/` was never built. */

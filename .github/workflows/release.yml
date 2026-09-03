@@ -1,0 +1,54 @@
+name: Release
+
+# Publishing is tag-driven: a human pushes a `v*` tag (the deliberate act),
+# and this workflow performs the publish via npm TRUSTED PUBLISHING — GitHub's
+# OIDC token is exchanged directly with npm, so there is no long-lived
+# NPM_TOKEN secret to leak or rotate, and npm attaches build provenance
+# automatically. The trusted publisher (this repo + this workflow filename)
+# is registered in the package's settings on npmjs.com.
+on:
+  push:
+    tags: ["v*"]
+
+# id-token: write is what mints the OIDC token for npm; contents stays read.
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    name: publish to npm (trusted)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.x
+          cache: npm
+          registry-url: https://registry.npmjs.org
+
+      # OIDC trusted publishing needs npm >= 11.5.1; pin past it explicitly
+      # rather than trusting whatever the runner image bundles.
+      - run: npm install -g npm@latest
+
+      # Reproducible install off the committed lockfile.
+      - run: npm ci
+
+      # The tag IS the version claim — refuse to publish a mismatch, so a tag
+      # pushed against the wrong commit fails loudly instead of shipping it.
+      - name: tag matches package.json version
+        run: |
+          set -euo pipefail
+          PKG="$(node -p "require('./package.json').version")"
+          TAG="${GITHUB_REF_NAME#v}"
+          if [ "$PKG" != "$TAG" ]; then
+            echo "package.json version ($PKG) does not match tag ($TAG)"
+            exit 1
+          fi
+
+      # prepublishOnly runs the full gate first (build, the whole vitest
+      # suite, and the tarball smoke test that installs the pack into a
+      # scratch project and exercises every command) — publish only happens
+      # if all of it is green. No auth token: OIDC handles it.
+      - run: npm publish

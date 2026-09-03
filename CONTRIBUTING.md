@@ -118,23 +118,34 @@ reaching for a formatter.
 
 ## Release checklist
 
-Releasing is a deliberate, mostly-manual sequence. The last step is
-performed by a human, on purpose:
+Releasing is deliberate and tag-driven. The deliberate human act is pushing
+the version tag; the publish itself is performed by the `Release` workflow
+(`.github/workflows/release.yml`) via **npm trusted publishing** — GitHub's
+OIDC token is exchanged directly with npm, so no publish token exists to
+leak, and npm attaches build provenance automatically. Only the maintainer
+can push tags, and only this repo + that workflow are registered as the
+package's trusted publisher on npmjs.com.
 
 1. `npm run build && npx tsc --noEmit && npx vitest run` — green.
 2. `npm run test:package` — green.
 3. `npm audit --audit-level=high` — clean.
 4. `npm pack` and inspect the tarball by hand: entrypoints present
-   (`dist/cli.js`, `bin/keyart.js`, `dist/index.js`, `dist/ui/index.html`,
-   `templates/**`), no test files, `LICENSE` and `README.md` included, size
-   sane.
-5. Install the tarball into a scratch project with `--omit=dev` and run
-   `keyart --help` and `keyart serve` by hand.
-6. Bump `version` in `package.json`, update `src/cli.ts`'s `.version(...)`
-   call to match (it is hard-coded — verify it still is), and tag the
-   release.
-7. **`npm publish` — performed by a human, deliberately.** No automation in
-   this repository publishes, and none should be added without an explicit
-   decision by the maintainer. `prepublishOnly` (`npm run build && npm test
-   && npm run test:package`) runs as the last automatic safety net before
-   whatever a human types next, but it never types `npm publish` for you.
+   (`dist/cli.js`, `bin/keyart.js`, `dist/index.js`, `dist/server.js`,
+   `dist/ui/index.html`, `templates/**`), no test files, `LICENSE`,
+   `NOTICE`, and `README.md` included, size sane.
+5. Bump `version` in `package.json`, update `src/cli.ts`'s `.version(...)`
+   call and `src/mcp/server.ts`'s server version to match (both are
+   hard-coded — verify they still are), and update `CHANGELOG.md`.
+6. Commit, then **push the tag — the deliberate act**:
+   `git tag vX.Y.Z && git push origin vX.Y.Z`. The workflow refuses a tag
+   that doesn't match `package.json`, and `prepublishOnly` (build + full
+   test suite + tarball smoke) runs inside it as the last safety net before
+   the publish.
+7. Verify: `npm view @wildorder/keyart` shows the new version with a
+   provenance attestation, and `npx @wildorder/keyart@X.Y.Z --version`
+   answers from a clean directory. Then create the GitHub release from the
+   tag.
+
+A manual `npm publish` from a maintainer's machine remains possible as a
+fallback (the same `prepublishOnly` gate runs), but the workflow is the
+normal path.

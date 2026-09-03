@@ -5,6 +5,7 @@ import { runRegenerateVisuals } from "./commands/regenerate-visuals.js";
 import { runApprove } from "./commands/approve.js";
 import { runBrief } from "./commands/brief.js";
 import { runAudit } from "./commands/audit.js";
+import { PACKAGE_VERSION } from "./pkg-version.js";
 import { runServe } from "./commands/serve.js";
 import { runMcp } from "./commands/mcp.js";
 import { runDoctor } from "./commands/doctor.js";
@@ -41,7 +42,7 @@ const program = new Command();
 program
   .name("keyart")
   .description("A local creative director for AI-built prototypes")
-  .version("0.1.0")
+  .version(PACKAGE_VERSION)
   .option("--cwd <dir>", "working directory", process.cwd());
 
 program

@@ -133,14 +133,14 @@ package's trusted publisher on npmjs.com.
    (`dist/cli.js`, `bin/keyart.js`, `dist/index.js`, `dist/server.js`,
    `dist/ui/index.html`, `templates/**`), no test files, `LICENSE`,
    `NOTICE`, and `README.md` included, size sane.
-5. Bump `version` in `package.json`, update `src/cli.ts`'s `.version(...)`
-   call and `src/mcp/server.ts`'s server version to match (both are
-   hard-coded — verify they still are), and update `CHANGELOG.md`.
-6. Commit, then **push the tag — the deliberate act**:
-   `git tag vX.Y.Z && git push origin vX.Y.Z`. The workflow refuses a tag
-   that doesn't match `package.json`, and `prepublishOnly` (build + full
-   test suite + tarball smoke) runs inside it as the last safety net before
-   the publish.
+5. Update `CHANGELOG.md` for the new version and commit it.
+6. **`npm version <patch|minor|major>` then `git push --follow-tags` — the
+   deliberate act.** `package.json` is the single version source (the CLI
+   and MCP server read it at runtime via `src/pkg-version.ts`), so
+   `npm version` bumps, commits, and tags in one step, and the pushed tag
+   triggers the publish. The workflow refuses a tag that doesn't match
+   `package.json`, and `prepublishOnly` (build + full test suite + tarball
+   smoke) runs inside it as the last safety net before the publish.
 7. Verify: `npm view @wildorder/keyart` shows the new version with a
    provenance attestation, and `npx @wildorder/keyart@X.Y.Z --version`
    answers from a clean directory. Then create the GitHub release from the

@@ -1,4 +1,5 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { PACKAGE_VERSION } from "../pkg-version.js";
 import { z } from "zod";
 import {
   dispatchCommand,
@@ -26,7 +27,7 @@ export interface BuildServerOptions {
 // hang the JSON-RPC channel.
 
 export function buildServer(opts: BuildServerOptions): McpServer {
-  const server = new McpServer({ name: "keyart", version: "0.1.0" });
+  const server = new McpServer({ name: "keyart", version: PACKAGE_VERSION });
 
   // Capability facades: one tool per domain group. Grouping drives routing,
   // description, and help only — any command dispatches through any facade.

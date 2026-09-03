@@ -22,11 +22,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # NOTE: no `registry-url` here on purpose — that input writes an .npmrc
+      # with `always-auth` and a NODE_AUTH_TOKEN placeholder, both of which
+      # are token-auth machinery. OIDC trusted publishing needs neither, and
+      # npm defaults to registry.npmjs.org.
       - uses: actions/setup-node@v4
         with:
           node-version: 24.x
           cache: npm
-          registry-url: https://registry.npmjs.org
 
       # OIDC trusted publishing needs npm >= 11.5.1; pin past it explicitly
       # rather than trusting whatever the runner image bundles.

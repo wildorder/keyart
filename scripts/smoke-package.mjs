@@ -104,8 +104,15 @@ function packTarball(tmpRoot) {
   const result = run("npm", ["pack", "--json", "--pack-destination", tmpRoot], {
     cwd: repoRoot,
   });
-  const start = result.stdout.indexOf("[");
-  const [packed] = JSON.parse(result.stdout.slice(start));
+  // Newer npm versions append human-readable notice/warn text around the
+  // JSON on stdout: drop npm-prefixed lines, then parse the bracketed span.
+  const clean = result.stdout
+    .split("\n")
+    .filter((line) => !/^npm (notice|warn|error)\b/.test(line))
+    .join("\n");
+  const start = clean.indexOf("[");
+  const end = clean.lastIndexOf("]");
+  const [packed] = JSON.parse(clean.slice(start, end + 1));
   const { filename, entryCount, unpackedSize } = packed;
   console.log(`packed ${filename}: ${entryCount} files, ${unpackedSize} bytes unpacked`);
   return { filename, entryCount, unpackedSize, tarballPath: path.join(tmpRoot, filename) };

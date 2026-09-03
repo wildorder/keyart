@@ -26,8 +26,16 @@ function packManifest(): PackResult {
     stdio: ["ignore", "pipe", "pipe"],
     shell: process.platform === "win32",
   });
-  const start = stdout.indexOf("[");
-  return JSON.parse(stdout.slice(start))[0] as PackResult;
+  // Newer npm versions append human-readable notice/warn text around the
+  // JSON on stdout (seen with npm@latest in the release workflow): drop
+  // npm-prefixed lines, then parse exactly the bracketed span.
+  const clean = stdout
+    .split("\n")
+    .filter((line) => !/^npm (notice|warn|error)\b/.test(line))
+    .join("\n");
+  const start = clean.indexOf("[");
+  const end = clean.lastIndexOf("]");
+  return JSON.parse(clean.slice(start, end + 1))[0] as PackResult;
 }
 
 /** Fails loudly (never skips) if `dist/` was never built. */

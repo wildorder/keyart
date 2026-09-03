@@ -165,12 +165,18 @@ export function createStaticFileHandler(opts: { root: string }): ConnectHandler 
         return;
       }
 
-      // Strip exactly one leading "/". A decoded value that still starts with
-      // "/" after that (e.g. the double-slash "//etc/passwd" or a Windows
-      // drive path "/C:/Windows/win.ini") stays an ABSOLUTE second argument to
-      // `path.resolve`, which overrides `root` entirely — `resolveUnderCwd`'s
-      // containment check then refuses it, exactly as it refuses `../`.
+      // Strip exactly one leading "/". What remains must be RELATIVE under
+      // BOTH platforms' rules — checked explicitly against posix AND win32
+      // (not just the host platform's), because e.g. "C:/Windows/win.ini" is
+      // absolute on Windows but a legal relative segment on Linux: without the
+      // cross-platform check the same URL would 403 on one OS and fall through
+      // to the SPA fallback on the other. Refusing both forms everywhere keeps
+      // the handler's security behavior byte-identical across platforms.
       const relative = decoded.startsWith("/") ? decoded.slice(1) : decoded;
+      if (path.posix.isAbsolute(relative) || path.win32.isAbsolute(relative)) {
+        sendJson(res, 403, { error: "Forbidden path" });
+        return;
+      }
 
       let abs: string;
       try {

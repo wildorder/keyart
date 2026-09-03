@@ -4,6 +4,11 @@ on:
   push:
     branches: [main]
   pull_request:
+  # The audit job also runs weekly so a new upstream advisory surfaces within
+  # days even when nothing is being pushed.
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
 
 # Least privilege: the gate reads code and nothing else.
 permissions:
@@ -12,6 +17,9 @@ permissions:
 jobs:
   gate:
     name: gate (node ${{ matrix.node }})
+    # The scheduled trigger exists for the audit job; don't re-run the whole
+    # gate on an unchanged tree every week.
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -33,9 +41,8 @@ jobs:
       - run: npx tsc --noEmit
       - run: npx vitest run
 
-      # The packaging gates.
+      # The packaging gate.
       - run: npm run test:package
-      - run: npm audit --audit-level=high
 
       # Both `serve` runtimes are exercised on every PR: the packaged static
       # runtime is covered by test:package, and this covers the --dev fork loop
@@ -59,3 +66,20 @@ jobs:
           done
           echo "serve --dev never answered:"; cat /tmp/dev-serve.log
           exit 1
+
+  # Dependency advisories are the maintainer's signal, not a contributor's
+  # problem: this job deliberately does NOT run on pull requests, so a new
+  # upstream advisory reddens main and the weekly schedule — where the fix
+  # belongs — instead of failing unrelated PRs.
+  audit:
+    name: dependency audit
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.x
+          cache: npm
+      - run: npm ci
+      - run: npm audit --audit-level=high

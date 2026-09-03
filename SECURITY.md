@@ -68,9 +68,12 @@ OpenAI credential and is sent only to OpenAI's API — nowhere else.
 
 ## Dependencies
 
-`npm audit --audit-level=high` runs in CI on every push and pull request. A
-committed `package-lock.json` makes installs reproducible, so an audit result
-reflects what actually gets installed, not just what `package.json` allows.
+`npm audit --audit-level=high` runs in CI on every push to `main` and on a
+weekly schedule (deliberately not on pull requests — a new upstream advisory
+is the maintainer's signal to fix `main`, not a reason an unrelated
+contribution goes red). A committed `package-lock.json` makes installs
+reproducible, so an audit result reflects what actually gets installed, not
+just what `package.json` allows.
 
 ## Accepted risks
 

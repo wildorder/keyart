@@ -229,4 +229,66 @@ describe("studio layout in a real browser (1440×900)", () => {
       Math.min(rail.y + rail.height, content.y + content.height) - Math.max(rail.y, content.y);
     expect(overlap).toBeGreaterThan(0);
   });
+
+  it("makes the rail a full-height third column beside the header too, scrolling on its own", async () => {
+    const header = await boxOf(".direction-chrome");
+    const rail = await boxOf(".chat-rail");
+    expect(rail.x).toBeGreaterThanOrEqual(header.x + header.width - 1);
+    expect(rail.y).toBeLessThanOrEqual(1);
+    expect(rail.height).toBeGreaterThanOrEqual(VIEWPORT.height - 2);
+
+    // Scrolling the workspace leaves the rail where it is.
+    await page.locator(".main").evaluate((el) => el.scrollTo(0, 400));
+    const railAfter = await boxOf(".chat-rail");
+    expect(railAfter.y).toBe(rail.y);
+    await page.locator(".main").evaluate((el) => el.scrollTo(0, 0));
+  });
+
+  it("shows each generated image once, with no separate feedback panel", async () => {
+    // The stage's thumbnail row is its image SELECTOR (every image, the staged
+    // one highlighted), not a second gallery, so it is counted on its own.
+    const srcsOf = (selector: string) =>
+      page
+        .locator(selector)
+        .evaluateAll((imgs) => imgs.map((i) => decodeURIComponent((i as HTMLImageElement).src)));
+    const shown = await srcsOf(".main img:not(.stage-thumb__img), .app-rail img");
+    const thumbs = await srcsOf(".stage-thumb__img");
+    for (const name of ["style-tile.png", "homepage-mockup.png"]) {
+      expect(shown.filter((s) => s.includes(name)).length, name).toBeLessThanOrEqual(1);
+      expect(thumbs.filter((s) => s.includes(name)), name).toHaveLength(1);
+    }
+    // Exactly one image is on the stage.
+    expect(await page.locator(".stage-image img").count()).toBe(1);
+    expect(await page.locator(".gallery-feedback").count()).toBe(0);
+    expect(await page.getByText("Give feedback on an image").count()).toBe(0);
+  });
+
+  it("splits the header into two lines and drops its Regenerate button", async () => {
+    expect(await page.locator(".direction-chrome .chrome-line").count()).toBe(2);
+    expect(
+      await page.locator(".direction-chrome").getByRole("button", { name: /regenerat/i }).count(),
+    ).toBe(0);
+  });
+
+  it("records a crop dragged on the stage from the rail, with the typed note", async () => {
+    await page.locator(".stage-tools").getByRole("button", { name: "Crop" }).click();
+    const surface = page.locator(".stage-image__surface");
+    await surface.waitFor();
+    const box = await boxOf(".stage-image__surface");
+    await page.mouse.move(box.x + 20, box.y + 20);
+    await page.mouse.down();
+    await page.mouse.move(box.x + 120, box.y + 90, { steps: 4 });
+    await page.mouse.up();
+
+    const chip = page.locator(".chat-crop-chip");
+    await chip.waitFor({ timeout: 10_000 });
+    await page.locator(".chat-composer__input").fill("love this warm corner");
+    await page.locator(".chat-quick-intents").getByRole("button", { name: "Keep" }).click();
+    await chip.waitFor({ state: "detached", timeout: 10_000 });
+
+    // A kept crop is registered on the direction as a positive reference,
+    // carrying the note, exactly as the old feedback panel recorded it.
+    const dashboard = await api<{ directions: unknown[] }>("GET", "/api/dashboard");
+    expect(JSON.stringify(dashboard.directions[0])).toContain("love this warm corner");
+  });
 });

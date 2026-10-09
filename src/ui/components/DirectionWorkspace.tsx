@@ -3,13 +3,16 @@
  * selection). Hosts DirectionChrome + the focused DirectionGallery (single-
  * hero master–detail, swatch row, segmented version control) + AssetShelf +
  * the ChatRail — the ONLY ChatRail mount in the studio, with a non-nullable
- * `directionId`. Owns compare state (up to two versions, across directions).
+ * `directionId`. The rail is mounted HERE, where the focused version and the
+ * pending stage capture live, but portalled into the shell's rail slot (see
+ * RailHost) so it is a viewport-tall third column that scrolls on its own. Owns compare state (up to two versions, across directions).
  *
  * A DRAFT direction (zero versions, `head: null`) renders the describe-first
  * empty state instead of the gallery: brief form + moodboard dropzone, with
  * the chrome's single **Generate v1** CTA above them.
  */
 import React, { useState } from "react";
+import { createPortal } from "react-dom";
 import type {
   ApprovedDirection,
   DashboardDirection,
@@ -20,6 +23,8 @@ import { DirectionChrome } from "./DirectionChrome";
 import { CompareOverlay, type CompareItem } from "./CompareOverlay";
 import { AssetShelf } from "./AssetShelf";
 import { ChatRail } from "./ChatRail";
+import { useRailHost } from "./RailHost";
+import { PendingCaptureProvider } from "../pending-capture.js";
 import { BriefEditor } from "./BriefEditor";
 import { MoodboardUploader } from "./MoodboardUploader";
 import { AssetGallery } from "./AssetGallery";
@@ -49,6 +54,9 @@ export function DirectionWorkspace({
   reload,
 }: DirectionWorkspaceProps): JSX.Element {
   const pointer = global?.approvedPointer ?? null;
+
+  // The shell's rail column, or null before it mounts.
+  const railHost = useRailHost();
 
   const [compare, setCompare] = useState<CompareRef[]>([]);
   const [compareOpen, setCompareOpen] = useState(false);
@@ -110,94 +118,102 @@ export function DirectionWorkspace({
     disabledFor: compareDisabledFor,
   };
 
+  // The provider is keyed by direction so a capture never outlives the
+  // direction it was taken on: switching directions drops it.
   return (
-    <div className="direction-workspace">
-      <DirectionChrome direction={direction} reload={reload} />
+    <PendingCaptureProvider key={direction.id}>
+      <div className="direction-workspace">
+        <DirectionChrome direction={direction} reload={reload} />
 
-      <div className="workspace-body workspace-focus-layout">
-        <div className="workspace-focus-main">
-          {direction.isDraft ? (
-            /* Draft empty state — describe-first: fill in the brief, drop
-               reference images, then Generate v1 (the chrome's single CTA). */
-            <div className="workspace-empty-state">
-              <div className="empty-state-setup">
-                <BriefEditor direction={direction} reload={reload} />
-                <div className="empty-state-moodboard">
-                  <MoodboardUploader directionId={direction.id} reload={reload} />
-                  <AssetGallery
-                    assets={direction.assets}
-                    directionId={direction.id}
-                    expectedVersion={direction.version}
-                    reload={reload}
-                  />
+        <div className="workspace-body workspace-focus-layout">
+          <div className="workspace-focus-main">
+            {direction.isDraft ? (
+              /* Draft empty state — describe-first: fill in the brief, drop
+                 reference images, then Generate v1 (the chrome's single CTA). */
+              <div className="workspace-empty-state">
+                <div className="empty-state-setup">
+                  <BriefEditor direction={direction} reload={reload} />
+                  <div className="empty-state-moodboard">
+                    <MoodboardUploader directionId={direction.id} reload={reload} />
+                    <AssetGallery
+                      assets={direction.assets}
+                      directionId={direction.id}
+                      expectedVersion={direction.version}
+                      reload={reload}
+                    />
+                  </div>
+                </div>
+                <p className="empty-state-hint">
+                  Fill in the brief and add reference images, then hit{" "}
+                  <strong>Generate v1</strong> above to render this direction&apos;s
+                  first version.
+                </p>
+              </div>
+            ) : (
+              <>
+                <DirectionGallery
+                  direction={direction}
+                  isPinnedVersion={isPinnedVersion}
+                  reload={reload}
+                  compare={compareControls}
+                  onSelectedVersionChange={(version) =>
+                    setFocusedVersionId(version.versionId)
+                  }
+                />
+                <AssetShelf direction={direction} reload={reload} />
+              </>
+            )}
+
+            {compare.length > 0 && (
+              <div className="compare-bar" role="region" aria-label="Compare selection">
+                <span className="compare-bar-count">
+                  {compare.length} of {MAX_COMPARE} selected to compare
+                </span>
+                <div className="compare-bar-actions">
+                  <button
+                    type="button"
+                    className="btn btn-primary btn-sm"
+                    disabled={compareItems.length !== MAX_COMPARE}
+                    onClick={() => setCompareOpen(true)}
+                  >
+                    Compare
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm"
+                    onClick={() => {
+                      setCompare([]);
+                      setCompareOpen(false);
+                    }}
+                  >
+                    Clear
+                  </button>
                 </div>
               </div>
-              <p className="empty-state-hint">
-                Fill in the brief and add reference images, then hit{" "}
-                <strong>Generate v1</strong> above to render this direction&apos;s
-                first version.
-              </p>
-            </div>
-          ) : (
-            <>
-              <DirectionGallery
-                direction={direction}
-                isPinnedVersion={isPinnedVersion}
+            )}
+
+            {compareOpen && compareItems.length === MAX_COMPARE && (
+              <CompareOverlay
+                items={compareItems}
+                onClose={() => setCompareOpen(false)}
                 reload={reload}
-                compare={compareControls}
-                onSelectedVersionChange={(version) =>
-                  setFocusedVersionId(version.versionId)
-                }
               />
-              <AssetShelf direction={direction} reload={reload} />
-            </>
-          )}
-
-          {compare.length > 0 && (
-            <div className="compare-bar" role="region" aria-label="Compare selection">
-              <span className="compare-bar-count">
-                {compare.length} of {MAX_COMPARE} selected to compare
-              </span>
-              <div className="compare-bar-actions">
-                <button
-                  type="button"
-                  className="btn btn-primary btn-sm"
-                  disabled={compareItems.length !== MAX_COMPARE}
-                  onClick={() => setCompareOpen(true)}
-                >
-                  Compare
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-ghost btn-sm"
-                  onClick={() => {
-                    setCompare([]);
-                    setCompareOpen(false);
-                  }}
-                >
-                  Clear
-                </button>
-              </div>
-            </div>
-          )}
-
-          {compareOpen && compareItems.length === MAX_COMPARE && (
-            <CompareOverlay
-              items={compareItems}
-              onClose={() => setCompareOpen(false)}
-              reload={reload}
-            />
-          )}
+            )}
+          </div>
         </div>
 
-        <ChatRail
-          directionId={direction.id}
-          direction={direction}
-          focusedVersionId={focusedVersionId}
-          pointer={pointer}
-          reload={reload}
-        />
+        {railHost !== null &&
+          createPortal(
+            <ChatRail
+              directionId={direction.id}
+              direction={direction}
+              focusedVersionId={focusedVersionId}
+              pointer={pointer}
+              reload={reload}
+            />,
+            railHost,
+          )}
       </div>
-    </div>
+    </PendingCaptureProvider>
   );
 }

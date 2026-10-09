@@ -92,6 +92,21 @@ describe("Tier A wiring (JSX-event mode) — WS-18's twenty-eight control-bound 
   }
 });
 
+describe("Rail capture intents (JSX-event mode)", () => {
+  // A crop or color taken on the gallery stage is resolved from the chat
+  // rail's composer as well as from ElementFeedback. The rail's Keep / Discard
+  // / Lock must post through the same builder, so the element-feedback request
+  // body stays identical whichever surface sends it.
+  it('ChatRail.tsx: "onClick" resolves to a handler referencing elementFeedbackRequest', () => {
+    const result = checkJsxEventWiringFile(
+      ui("components", "ChatRail.tsx"),
+      "onClick",
+      "elementFeedbackRequest",
+    );
+    expect(result.wired, result.detail).toBe(true);
+  });
+});
+
 describe("Tier B wiring (effect mode) — WS-18's two automatic builders", () => {
   it("the wiring table covers EXACTLY WS-18's two (list-driven off the shared roster)", () => {
     expect(Object.keys(TIER_B_WIRING).sort()).toEqual([...WS18_TIER_B_BUILDERS].sort());

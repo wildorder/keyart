@@ -34,6 +34,29 @@ export function secondaryImagesOf(
 }
 
 /**
+ * Every evocative image for this version as one ordered `{path, label}` list —
+ * the STAGE's image set, which the thumbnail row selects from.
+ *
+ * The order is identical to {@link galleryImagesOf}, so an index into either
+ * list addresses the same image and the stage's thumbnail row stays in lockstep
+ * with the lightbox group. Unlike {@link secondaryImagesOf} this INCLUDES the
+ * hero: on the stage every image is a peer and the staged one is a selection,
+ * not a fixed role. `styleBoardSvg` is still never a target.
+ */
+export function stageImagesOf(
+  version: DashboardVersion,
+): { path: string; label: string }[] {
+  const candidates: { path: string | undefined; label: string }[] = [
+    { path: version.images?.styleTile, label: "Style tile" },
+    { path: version.images?.homepageMockup, label: "Homepage mockup" },
+    { path: version.images?.styleBoard, label: "Style board (generated)" },
+  ];
+  return candidates.filter(
+    (c): c is { path: string; label: string } => Boolean(c.path),
+  );
+}
+
+/**
  * All evocative images for this version as one ordered LightboxImage group.
  * Order: styleTile → homepageMockup → styleBoard (mirrors the existing gallery logic).
  */

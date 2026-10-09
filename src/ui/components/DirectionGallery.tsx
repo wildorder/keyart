@@ -274,9 +274,6 @@ export function DirectionCardBody({
   // The palette roles the user has locked on the board — threaded up so the
   // unified Regenerate holds them verbatim while the rest re-extract (SC-06/08).
   const [lockedRoles, setLockedRoles] = useState<PaletteRole[]>([]);
-  // The generated image currently open for element-level feedback (crop /
-  // eyedropper), or null when the overlay is closed.
-  const [feedbackPath, setFeedbackPath] = useState<string | null>(null);
 
   const images = version.images;
 
@@ -383,12 +380,7 @@ export function DirectionCardBody({
         imgVersion={imgVersion}
         isHead={isHead}
         directionId={directionId}
-        feedbackPath={feedbackPath}
-        onToggleFeedback={(p) => setFeedbackPath((c) => (c === p ? null : p))}
-        onFeedbackDone={() => {
-          setFeedbackPath(null);
-          reload();
-        }}
+        onFeedbackDone={reload}
       />
 
       {/* The deterministic palette + type board, straight from the tokens
@@ -480,7 +472,7 @@ export function DirectionCardBody({
         {isHead && regenOpen && (
           <div className="regen-form">
             <p className="field-hint">
-              One loop: <strong>keep/discard</strong> a region above,{" "}
+              One loop: <strong>crop</strong> a region on the stage above,{" "}
               <strong>lock</strong> swatches on the board, add a{" "}
               <strong>note</strong>, then <strong>Regenerate</strong>. It re-renders
               both graphics from the brief + your locked colors + kept crops +

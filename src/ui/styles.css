@@ -3576,12 +3576,21 @@ h2 {
   cursor: pointer;
 }
 
-/* Direction + rail side-by-side composition in DirectionWorkspace */
+/* Direction + rail side-by-side composition in DirectionWorkspace. The row
+   direction is explicit: this element also carries .workspace-body, whose
+   column direction would otherwise stack the rail under the content. */
 .workspace-focus-layout {
   display: flex;
+  flex-direction: row;
+  align-items: flex-start;
   flex: 1;
   min-height: 0;
   overflow: hidden;
+}
+
+.workspace-focus-main {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 /* =========================================================================

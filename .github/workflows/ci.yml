@@ -36,6 +36,10 @@ jobs:
       # Reproducible install off the committed lockfile.
       - run: npm ci
 
+      # The studio layout test drives a real headless browser. Only the
+      # headless shell is needed, not full Chromium.
+      - run: npx playwright install --with-deps --only-shell chromium
+
       # The canonical gate, split so a failure names itself.
       - run: npm run build
       - run: npx tsc --noEmit

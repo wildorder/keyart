@@ -1,0 +1,59 @@
+{
+  "schemaVersion": 1,
+  "projectId": "proj_01M4FN0WTK3YVQVD6K9KSBZB3G",
+  "contextDocs": [],
+  "setup": [
+    {
+      "id": "install",
+      "command": "npm ci --prefer-offline"
+    }
+  ],
+  "verification": [
+    {
+      "id": "build",
+      "command": "npm run build"
+    },
+    {
+      "id": "typecheck",
+      "command": "npm run typecheck"
+    },
+    {
+      "id": "test",
+      "command": "npm run test"
+    }
+  ],
+  "modelPolicy": {
+    "allowedProviders": [
+      "anthropic",
+      "openai"
+    ],
+    "allowedModels": [],
+    "forbiddenModels": []
+  },
+  "delegationLimits": {
+    "maxDepth": 2,
+    "maxConcurrency": 2
+  },
+  "costPolicy": {},
+  "examinationPolicy": {
+    "low": {
+      "required": false,
+      "mustDifferModel": false,
+      "mustDifferProvider": false,
+      "blockOnMaterialFindings": false
+    },
+    "medium": {
+      "required": false,
+      "mustDifferModel": false,
+      "mustDifferProvider": false,
+      "blockOnMaterialFindings": false
+    },
+    "high": {
+      "required": false,
+      "mustDifferModel": false,
+      "mustDifferProvider": false,
+      "blockOnMaterialFindings": false
+    }
+  },
+  "defaultRisk": "medium"
+}

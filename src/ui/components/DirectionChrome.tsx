@@ -15,7 +15,7 @@
  * workspace is never a dead end to escape from.
  */
 import React, { useEffect, useState } from "react";
-import type { ChromePanel, DashboardDirection } from "../types";
+import type { ChromePanel, DashboardDirection, DashboardVersion } from "../types";
 import { generateV1Request } from "../direction-actions.js";
 import { NotesComposer } from "./NotesComposer";
 import { MemoryPanel } from "./MemoryPanel";
@@ -29,6 +29,11 @@ import { JobProgress, useAction } from "./JobProgress";
 
 export interface DirectionChromeProps {
   direction: DashboardDirection;
+  /** The version on screen; its summary describes the page. (Its positioning
+   * statement is not shown here — it feeds the guides and is editable from the
+   * gallery's Edit form; the brief carries the authored positioning.)
+   * null for a draft, which has no version yet. */
+  version?: DashboardVersion | null;
   reload: () => void;
 }
 
@@ -69,7 +74,7 @@ const PANEL_ICONS: Record<Exclude<ChromePanel, null>, JSX.Element> = {
   ),
 };
 
-export function DirectionChrome({ direction, reload }: DirectionChromeProps) {
+export function DirectionChrome({ direction, version = null, reload }: DirectionChromeProps) {
   // The open secondary drawer — `setOpenDrawer` is the plan-bound setter name.
   const [openDrawer, setOpenDrawer] = useState<ChromePanel>(null);
 
@@ -147,8 +152,10 @@ export function DirectionChrome({ direction, reload }: DirectionChromeProps) {
 
   return (
     <>
-      <header className="direction-chrome">
-        {/* Line 1 — IDENTITY: what you are looking at. */}
+      {/* IDENTITY: what you are looking at — the name and status, then the
+          viewed version's description. It scrolls away with the page; only the
+          drawer bar below stays pinned. */}
+      <div className="direction-identity">
         <div className="chrome-line chrome-line--identity">
           <h2 className="chrome-direction-name">{direction.name}</h2>
           <StatusBadge status={direction.status} />
@@ -164,8 +171,15 @@ export function DirectionChrome({ direction, reload }: DirectionChromeProps) {
             </button>
           )}
         </div>
+        {version && (
+          <div className="direction-header">
+            <p className="gallery-summary">{version.summary}</p>
+          </div>
+        )}
+      </div>
 
-        {/* Line 2 — NAVIGATION: the drawers. One plane, one kind of thing. */}
+      {/* NAVIGATION: the drawers, pinned to the top of the workspace. */}
+      <header className="direction-chrome">
         <div className="chrome-line chrome-line--nav">
           <div className="chrome-actions">
             {(Object.keys(PANEL_LABELS) as Array<Exclude<ChromePanel, null>>).map(

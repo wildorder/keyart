@@ -1485,12 +1485,6 @@ h2 {
   color: var(--color-text);
 }
 
-.gallery-positioning {
-  font-size: var(--fs-sm);
-  color: var(--color-text-muted);
-  font-style: italic;
-}
-
 .gallery-copy {
   display: grid;
   grid-template-columns: max-content 1fr;
@@ -2198,7 +2192,8 @@ h2 {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  padding: var(--space-3) var(--space-4) var(--space-4);
+  /* Flush with the header above: the gallery is the page's main content. */
+  padding: 0 0 var(--space-4);
 }
 
 /* --- Segmented version pills (WS-01) --- */
@@ -2355,6 +2350,8 @@ h2 {
   flex-direction: column;
   gap: var(--space-1);
 }
+
+
 
 .direction-eyebrow {
   font-size: var(--fs-xs);
@@ -2818,20 +2815,33 @@ h2 {
   min-height: 0;
 }
 
-/* Sticky DirectionChrome — two lines. Line 1 is IDENTITY (the direction's
-   name and status, plus Generate v1 on a draft); line 2 is NAVIGATION (the
-   drawers). */
+/* The direction page starts flush with the top of the canvas: the pinned
+   drawer bar must sit at the very top when scrolled, with nothing showing
+   through above it, so the workspace view drops <main>'s top padding. */
+.main:has(.direction-workspace) {
+  padding-top: 0;
+}
+
+/* IDENTITY — the direction's name and status (plus Generate v1 on a draft),
+   then the viewed version's description. Scrolls away with the page. */
+.direction-identity {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-top: var(--space-4);
+}
+
+/* NAVIGATION — the drawer bar, pinned to the top of the workspace. */
 .direction-chrome {
   position: sticky;
   top: 0;
   z-index: var(--chrome-z);
   background: var(--color-surface);
   border-bottom: 1px solid var(--color-border);
-  padding: var(--space-3) 0 var(--space-2);
+  padding: var(--space-2) 0;
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  min-height: var(--chrome-height);
 }
 
 .chrome-line {
@@ -3462,6 +3472,11 @@ h2 {
 .workspace-focus-main {
   flex: 1 1 auto;
   min-width: 0;
+}
+
+/* The workspace gap already separates the header from the gallery. */
+.workspace-body.workspace-focus-layout {
+  padding-top: 0;
 }
 
 /* =========================================================================
@@ -4259,6 +4274,25 @@ h2 {
   gap: var(--space-2);
   padding: var(--space-2) var(--space-3);
   border-bottom: 1px solid var(--color-border);
+  min-width: 0;
+}
+
+/* The inline gallery's version switcher, carried in the stage header. Many
+   versions scroll sideways rather than wrapping the header onto two lines. */
+.stage-head .version-pills-bar {
+  flex: 1 1 auto;
+  min-width: 0;
+  flex-wrap: nowrap;
+  gap: var(--space-2);
+}
+.stage-head .version-pills {
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+.stage-head .version-pill {
+  padding: 0.2rem var(--space-3);
+  font-size: var(--fs-xs);
 }
 .stage-head__title {
   font-size: var(--fs-sm);
@@ -4272,6 +4306,7 @@ h2 {
 /* Segmented mode toggle, pushed to the trailing edge of the stage header. */
 .stage-tools {
   display: flex;
+  flex: none;
   gap: 2px;
   margin-left: auto;
   padding: 2px;
@@ -4301,17 +4336,25 @@ h2 {
   outline-offset: 1px;
 }
 
-/* The staged image. In a capture mode the wrapper takes the pointer gestures,
-   so it must not scroll/pan and must not be draggable. */
-.stage-image {
+/* Thumbnail column on the left, the staged image filling the rest. */
+.stage-body {
   display: flex;
-  justify-content: center;
+  align-items: flex-start;
+  min-width: 0;
+}
+
+/* The staged image takes the full width of the stage at its natural aspect
+   ratio — never capped by height. In a capture mode the wrapper takes the
+   pointer gestures, so it must not scroll/pan and must not be draggable. */
+.stage-image {
+  flex: 1 1 auto;
+  min-width: 0;
   background: var(--color-surface-alt);
 }
 .stage-image__surface {
   position: relative;
-  display: inline-block;
-  max-width: 100%;
+  display: block;
+  width: 100%;
   line-height: 0;
   touch-action: none; /* let a pointer drag draw a marquee, not scroll/pan */
   user-select: none;
@@ -4325,15 +4368,13 @@ h2 {
 .stage-image__img,
 .stage-image .asset-missing {
   display: block;
-  max-width: 100%;
-  max-height: 420px;
-  width: auto;
+  width: 100%;
   height: auto;
-  object-fit: contain;
   -webkit-user-drag: none;
 }
 .stage-image .asset-open {
   display: block;
+  width: 100%;
   padding: 0;
   border: none;
   background: none;
@@ -4369,12 +4410,14 @@ h2 {
   white-space: nowrap;
 }
 
-/* Thumbnail row — the stage's image selector, not a separate gallery. */
+/* Thumbnail column — the stage's image selector, not a separate gallery. */
 .stage-thumbs {
+  flex: none;
   display: flex;
-  gap: var(--space-2);
-  padding: var(--space-2) var(--space-3);
-  overflow-x: auto;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-2);
+  border-right: 1px solid var(--color-border);
   background: var(--color-surface);
 }
 .stage-thumb {

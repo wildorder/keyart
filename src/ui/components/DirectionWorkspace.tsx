@@ -64,6 +64,11 @@ export function DirectionWorkspace({
   // The version the user is actually VIEWING in the segmented version
   // switcher, for the chat rail to inherit. null ⇒ head.
   const [focusedVersionId, setFocusedVersionId] = useState<string | null>(null);
+  // The version on screen — its description heads the page. null ⇒ a draft.
+  const viewedVersion =
+    direction.versions.find((v) => v.versionId === focusedVersionId) ??
+    direction.versions[direction.versions.length - 1] ??
+    null;
 
   const isPinnedVersion = (directionId: string, versionId: string): boolean => {
     if (pointer) {
@@ -123,7 +128,7 @@ export function DirectionWorkspace({
   return (
     <PendingCaptureProvider key={direction.id}>
       <div className="direction-workspace">
-        <DirectionChrome direction={direction} reload={reload} />
+        <DirectionChrome direction={direction} version={viewedVersion} reload={reload} />
 
         <div className="workspace-body workspace-focus-layout">
           <div className="workspace-focus-main">

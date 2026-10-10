@@ -263,11 +263,24 @@ describe("studio layout in a real browser (1440×900)", () => {
     expect(await page.getByText("Give feedback on an image").count()).toBe(0);
   });
 
-  it("splits the header into two lines and drops its Regenerate button", async () => {
-    expect(await page.locator(".direction-chrome .chrome-line").count()).toBe(2);
-    expect(
-      await page.locator(".direction-chrome").getByRole("button", { name: /regenerat/i }).count(),
-    ).toBe(0);
+  it("heads the page with the name and description, then a drawer bar with no Regenerate", async () => {
+    const identity = await boxOf(".direction-identity");
+    const bar = await boxOf(".direction-chrome");
+    expect(await page.locator(".direction-identity .gallery-summary").count()).toBe(1);
+    expect(identity.y + identity.height).toBeLessThanOrEqual(bar.y + 1);
+    for (const region of [".direction-identity", ".direction-chrome"]) {
+      expect(
+        await page.locator(region).getByRole("button", { name: /regenerat/i }).count(),
+        region,
+      ).toBe(0);
+    }
+  });
+
+  it("pins the drawer bar flush with the top of the canvas when scrolled", async () => {
+    await page.locator(".main").evaluate((el) => el.scrollTo(0, 400));
+    const bar = await boxOf(".direction-chrome");
+    expect(Math.abs(bar.y)).toBeLessThanOrEqual(1);
+    await page.locator(".main").evaluate((el) => el.scrollTo(0, 0));
   });
 
   it("records a crop dragged on the stage from the rail, with the typed note", async () => {

@@ -37,6 +37,9 @@ interface DirectionHeroProps {
   directionId: string;
   /** Called after a capture is successfully recorded (reloads the dashboard). */
   onFeedbackDone: () => void;
+  /** Rendered at the start of the stage header in place of the plain
+   * "Gallery · N images" title — the inline gallery's version switcher. */
+  headerStart?: React.ReactNode;
 }
 
 export function DirectionHero({
@@ -45,6 +48,7 @@ export function DirectionHero({
   isHead,
   directionId,
   onFeedbackDone,
+  headerStart,
 }: DirectionHeroProps): JSX.Element {
   const stageImages = stageImagesOf(version);
   const gallery = galleryImagesOf(version, imgVersion);
@@ -105,10 +109,14 @@ export function DirectionHero({
     <div className="direction-hero">
       <div className="stage">
         <div className="stage-head">
-          <b className="stage-head__title">Gallery</b>
-          <span className="stage-head__count">
-            {stageImages.length} {stageImages.length === 1 ? "image" : "images"}
-          </span>
+          {headerStart ?? (
+            <>
+              <b className="stage-head__title">Gallery</b>
+              <span className="stage-head__count">
+                {stageImages.length} {stageImages.length === 1 ? "image" : "images"}
+              </span>
+            </>
+          )}
           {isHead && (
             <div className="stage-tools" role="group" aria-label="Stage mode">
               {STAGE_MODES.map((m) => (
@@ -126,51 +134,54 @@ export function DirectionHero({
           )}
         </div>
 
-        <StageImage
-          path={staged}
-          alt={`${version.name} — ${stagedLabel}`}
-          mode={effectiveMode}
-          imgVersion={imgVersion}
-          gallery={gallery}
-          galleryIndex={stagedIndex}
-          onCapture={(next) => {
-            setExtractOpen(false);
-            setPending({
-              capture: next,
-              directionId,
-              versionId: version.versionId,
-              sourceImage: sourceImageNameFor(version.images, staged) ?? undefined,
-            });
-          }}
-        />
-
-        {stageImages.length > 1 && (
-          <div className="stage-thumbs" role="tablist" aria-label="Staged image">
-            {stageImages.map((s) => (
-              <button
-                key={s.path}
-                type="button"
-                role="tab"
-                aria-selected={s.path === staged}
-                className={`stage-thumb${s.path === staged ? " is-active" : ""}`}
-                title={s.label}
-                onClick={() => {
-                  clearCapture();
-                  setActivePath(s.path);
-                }}
-              >
-                <AssetImage
-                  key={`${s.path}-${imgVersion}`}
-                  className="stage-thumb__img"
-                  path={s.path}
-                  alt={`${version.name} — ${s.label}`}
-                  version={imgVersion}
-                />
-                <span className="stage-thumb__label">{s.label}</span>
-              </button>
-            ))}
-          </div>
-        )}
+        {/* Thumbnails in a column to the left; the staged image takes the rest
+            of the width at its natural aspect ratio, however tall that is. */}
+        <div className="stage-body">
+          {stageImages.length > 1 && (
+            <div className="stage-thumbs" role="tablist" aria-label="Staged image" aria-orientation="vertical">
+              {stageImages.map((s) => (
+                <button
+                  key={s.path}
+                  type="button"
+                  role="tab"
+                  aria-selected={s.path === staged}
+                  className={`stage-thumb${s.path === staged ? " is-active" : ""}`}
+                  title={s.label}
+                  onClick={() => {
+                    clearCapture();
+                    setActivePath(s.path);
+                  }}
+                >
+                  <AssetImage
+                    key={`${s.path}-${imgVersion}`}
+                    className="stage-thumb__img"
+                    path={s.path}
+                    alt={`${version.name} — ${s.label}`}
+                    version={imgVersion}
+                  />
+                  <span className="stage-thumb__label">{s.label}</span>
+                </button>
+              ))}
+            </div>
+          )}
+          <StageImage
+            path={staged}
+            alt={`${version.name} — ${stagedLabel}`}
+            mode={effectiveMode}
+            imgVersion={imgVersion}
+            gallery={gallery}
+            galleryIndex={stagedIndex}
+            onCapture={(next) => {
+              setExtractOpen(false);
+              setPending({
+                capture: next,
+                directionId,
+                versionId: version.versionId,
+                sourceImage: sourceImageNameFor(version.images, staged) ?? undefined,
+              });
+            }}
+          />
+        </div>
 
         {isHead && (
           <p className="stage-hint">

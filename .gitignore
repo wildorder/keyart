@@ -37,6 +37,7 @@ AGENTS.md
 CLAUDE.md
 tasks/
 docs/programs/
+nightshift.config.json
 docs/snapshots/
 docs/as-built.md
 docs/vision.md

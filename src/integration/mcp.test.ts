@@ -3,7 +3,6 @@ import fs from "node:fs/promises";
 import fsSync from "node:fs";
 import path from "node:path";
 import os from "node:os";
-import { execSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import YAML from "yaml";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
@@ -58,23 +57,22 @@ function newestTsMtime(dir: string): number {
   return newest;
 }
 
-/** Build dist/ if cli.js is missing or older than the newest src file. */
-function ensureBuilt(): void {
+/** Fails loudly if dist/ is missing or older than the newest src file. */
+function assertBuilt(): void {
   const distCli = path.join(repoRoot, "dist", "cli.js");
-  let needsBuild = false;
+  let isStale = false;
   try {
     const distMtime = fsSync.statSync(distCli).mtimeMs;
     const srcMtime = newestTsMtime(path.join(repoRoot, "src"));
-    needsBuild = srcMtime > distMtime;
+    isStale = srcMtime > distMtime;
   } catch {
-    needsBuild = true; // dist missing
+    isStale = true; // dist missing
   }
-  if (needsBuild) {
-    execSync("npm run build", {
-      cwd: repoRoot,
-      stdio: "inherit",
-      timeout: 120_000,
-    });
+  if (isStale) {
+    throw new Error(
+      "dist/ is not built — run `npm run build` before `vitest run`. " +
+        "(The canonical gate is `npm run build && npx tsc --noEmit && npx vitest run`.)",
+    );
   }
 }
 
@@ -106,7 +104,7 @@ describe.skipIf(!NODE_OK)("mcp integration (real stdio)", () => {
   }
 
   beforeAll(async () => {
-    ensureBuilt();
+    assertBuilt();
 
     tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "keyart-mcp-"));
 

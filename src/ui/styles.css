@@ -86,12 +86,16 @@ code {
 }
 
 /* =========================================================================
-   App shell — sidebar + main
+   App shell — sidebar + main + rail
    ========================================================================= */
 .app-shell {
   display: grid;
-  grid-template-columns: var(--sidebar-width) 1fr;
-  min-height: 100vh;
+  /* The third column is the rail slot: `auto` so it collapses to zero on views
+     that portal no rail. Each column is viewport-tall and scrolls on its own, so
+     the rail never scrolls away with the workspace. */
+  grid-template-columns: var(--sidebar-width) 1fr auto;
+  height: 100vh;
+  overflow: hidden;
 }
 
 .app-aside {
@@ -129,10 +133,20 @@ code {
 .main {
   min-width: 0;
   width: 100%;
+  height: 100vh;
+  overflow-y: auto;
   padding: var(--space-4) var(--space-5);
   /* The content area is the white surface itself, full-bleed — not a narrow
      card floating on a grey page. */
   background: var(--color-surface);
+}
+
+/* The rail slot — the shell's third column. Empty until the direction
+   workspace portals its rail in, which then fills the full viewport height. */
+.app-rail {
+  display: flex;
+  min-width: 0;
+  height: 100vh;
 }
 
 /* Sidebar nav */
@@ -959,6 +973,16 @@ h2 {
 @media (max-width: 768px) {
   .app-shell {
     grid-template-columns: 1fr;
+    height: auto;
+    overflow: visible;
+  }
+  .main {
+    height: auto;
+    overflow: visible;
+  }
+  /* The rail stops being a column and becomes a block under the workspace. */
+  .app-rail {
+    height: auto;
   }
   .app-aside {
     position: static;
@@ -1459,12 +1483,6 @@ h2 {
 .gallery-summary {
   font-size: var(--fs-sm);
   color: var(--color-text);
-}
-
-.gallery-positioning {
-  font-size: var(--fs-sm);
-  color: var(--color-text-muted);
-  font-style: italic;
 }
 
 .gallery-copy {
@@ -2174,7 +2192,8 @@ h2 {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  padding: var(--space-3) var(--space-4) var(--space-4);
+  /* Flush with the header above: the gallery is the page's main content. */
+  padding: 0 0 var(--space-4);
 }
 
 /* --- Segmented version pills (WS-01) --- */
@@ -2325,87 +2344,14 @@ h2 {
   gap: var(--space-3);
 }
 
-/* Dominant hero figure */
-.direction-hero-main {
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-}
-
-.direction-hero-image,
-.direction-hero-main .asset-missing {
-  width: 100%;
-  aspect-ratio: 16 / 10;
-  max-height: 58vh;
-  object-fit: cover;
-  object-position: top;
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--color-border);
-  background: var(--color-surface);
-}
-
-.direction-hero-main .asset-missing {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--color-text-faint);
-  font-size: var(--fs-xs);
-  font-style: italic;
-}
-
-.direction-hero-caption {
-  font-size: var(--fs-xs);
-  color: var(--color-text-muted);
-}
-
-/* Secondary thumbnail row */
-.direction-hero-thumbs {
-  display: flex;
-  flex-direction: row;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-}
-
-.direction-hero-thumb {
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  flex: 0 0 auto;
-}
-
-.direction-hero-thumb-image,
-.direction-hero-thumb .asset-missing {
-  width: 80px;
-  height: 60px;
-  object-fit: cover;
-  border-radius: var(--radius);
-  border: 1px solid var(--color-border);
-  background: var(--color-surface);
-}
-
-.direction-hero-thumb .asset-missing {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--color-text-faint);
-  font-size: var(--fs-xs);
-  font-style: italic;
-}
-
-.direction-hero-thumb-caption {
-  font-size: var(--fs-xs);
-  color: var(--color-text-muted);
-  max-width: 80px;
-}
-
 /* Direction header — eyebrow + title + description, above the version pills. */
 .direction-header {
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
 }
+
+
 
 .direction-eyebrow {
   font-size: var(--fs-xs);
@@ -2755,28 +2701,6 @@ h2 {
    thumbnail. Mirrors the neutral studio palette / gallery-* / memory-* naming.
    --------------------------------------------------------------------------- */
 
-.gallery-feedback {
-  margin: var(--space-2) 0;
-  padding-top: var(--space-2);
-  border-top: 1px dashed var(--color-border);
-}
-.gallery-feedback-label {
-  display: block;
-  font-size: var(--fs-xs);
-  color: var(--color-text-muted);
-  margin-bottom: var(--space-1);
-}
-.gallery-feedback-tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-1);
-}
-.gallery-feedback-tabs .btn.is-active {
-  border-color: var(--color-accent);
-  color: var(--color-accent);
-  background: var(--color-accent-soft);
-}
-
 .element-feedback {
   margin-top: var(--space-3);
   padding: var(--space-3);
@@ -2788,65 +2712,6 @@ h2 {
   gap: var(--space-2);
 }
 
-.ef-toolbar {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  flex-wrap: wrap;
-}
-.ef-mode-btn {
-  padding: 0.2rem 0.6rem;
-  font-size: var(--fs-sm);
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-sm);
-  background: var(--color-surface);
-  color: var(--color-text);
-  cursor: pointer;
-}
-.ef-mode-btn.is-active {
-  border-color: var(--color-accent);
-  color: var(--color-accent);
-  background: var(--color-accent-soft);
-}
-.ef-hint {
-  font-size: var(--fs-xs);
-  color: var(--color-text-faint);
-}
-
-.ef-stage {
-  position: relative;
-  display: inline-block;
-  max-width: 100%;
-  line-height: 0;
-  touch-action: none; /* let pointer drags draw a marquee, not scroll/pan */
-  user-select: none;
-}
-.ef-stage--crop {
-  cursor: crosshair;
-}
-.ef-stage--eyedropper {
-  cursor: cell;
-}
-.ef-image {
-  display: block;
-  max-width: 100%;
-  height: auto;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  -webkit-user-drag: none;
-}
-.ef-marquee {
-  position: absolute;
-  border: 1.5px solid var(--color-accent);
-  background: rgba(74, 69, 201, 0.15); /* --color-accent @ ~15% */
-  pointer-events: none;
-}
-
-.ef-note-copy {
-  font-size: var(--fs-xs);
-  color: var(--color-text-muted);
-  margin: 0;
-}
 .ef-error {
   font-size: var(--fs-sm);
   color: var(--color-danger);
@@ -2950,26 +2815,60 @@ h2 {
   min-height: 0;
 }
 
-/* Sticky DirectionChrome */
+/* The direction page starts flush with the top of the canvas: the pinned
+   drawer bar must sit at the very top when scrolled, with nothing showing
+   through above it, so the workspace view drops <main>'s top padding. */
+.main:has(.direction-workspace) {
+  padding-top: 0;
+}
+
+/* IDENTITY — the direction's name and status (plus Generate v1 on a draft),
+   then the viewed version's description. Scrolls away with the page. */
+.direction-identity {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-top: var(--space-4);
+}
+
+/* NAVIGATION — the drawer bar, pinned to the top of the workspace. */
 .direction-chrome {
   position: sticky;
   top: 0;
   z-index: var(--chrome-z);
   background: var(--color-surface);
   border-bottom: 1px solid var(--color-border);
-  padding: var(--space-3) 0;
+  padding: var(--space-2) 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.chrome-line {
   display: flex;
   align-items: center;
-  gap: var(--space-4);
-  min-height: var(--chrome-height);
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.chrome-line__spacer {
+  flex: 1;
+}
+
+.chrome-line--identity {
+  gap: var(--space-3);
 }
 
 .chrome-direction-name {
-  font-size: var(--fs-2xl);
+  font-size: var(--fs-xl);
   font-weight: 700;
   letter-spacing: -0.01em;
   line-height: 1.2;
-  flex: 1;
+  flex: none;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   /* Override the global h2 underline/spacing — the chrome carries its own
      border, the title should not be underlined. */
   border-bottom: none;
@@ -3558,30 +3457,26 @@ h2 {
   gap: var(--space-1);
 }
 
-/* Retired scope-toggle styles (scope is location now) */
-.ef-scope-toggle {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  font-size: var(--fs-sm);
-  color: var(--color-text-muted);
-  cursor: pointer;
-}
-
-.ef-scope-toggle input[type="checkbox"] {
-  flex-shrink: 0;
-  width: 1rem;
-  height: 1rem;
-  accent-color: var(--color-accent);
-  cursor: pointer;
-}
-
-/* Direction + rail side-by-side composition in DirectionWorkspace */
+/* Direction + rail side-by-side composition in DirectionWorkspace. The row
+   direction is explicit: this element also carries .workspace-body, whose
+   column direction would otherwise stack the rail under the content. */
 .workspace-focus-layout {
   display: flex;
+  flex-direction: row;
+  align-items: flex-start;
   flex: 1;
   min-height: 0;
   overflow: hidden;
+}
+
+.workspace-focus-main {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* The workspace gap already separates the header from the gallery. */
+.workspace-body.workspace-focus-layout {
+  padding-top: 0;
 }
 
 /* =========================================================================
@@ -3731,18 +3626,34 @@ h2 {
 .chat-rail {
   display: flex;
   flex: 0 0 var(--rail-width);
+  width: var(--rail-width);
   flex-direction: column;
   min-width: 0;
-  overflow-y: auto;
+  height: 100%;
+  overflow: hidden; /* the message list scrolls, not the rail */
+  background: var(--color-surface);
   border-left: 1px solid var(--color-border);
-  padding-left: var(--space-4);
+}
+
+/* On a narrow screen the rail stops being a column and becomes a block under
+   the workspace. This sits after the base rule so it wins on source order. */
+@media (max-width: 768px) {
+  .chat-rail {
+    flex: 1 1 auto;
+    width: auto;
+    height: auto;
+    max-height: 70vh;
+    border-left: none;
+    border-top: 1px solid var(--color-border);
+  }
 }
 
 .chat-rail__header {
   display: flex;
+  flex: none;
   align-items: center;
   justify-content: space-between;
-  padding: var(--space-2) 0 var(--space-3);
+  padding: var(--space-4) var(--space-4) var(--space-2);
 }
 
 .chat-rail__title {
@@ -3755,9 +3666,12 @@ h2 {
 
 .chat-rail__body {
   display: flex;
+  flex: 1;
+  min-height: 0;
   flex-direction: column;
   gap: var(--space-3);
   overflow-y: auto;
+  padding: var(--space-2) var(--space-4);
 }
 
 .chat-message {
@@ -3849,10 +3763,26 @@ h2 {
 
 .chat-composer {
   display: flex;
+  flex: none;
   flex-direction: column;
   gap: var(--space-2);
-  padding-top: var(--space-2);
+  padding: var(--space-3) var(--space-4);
   border-top: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+/* The composer's context row — what the message being composed is ABOUT: the
+   inherited scope, and a capture waiting to be resolved. */
+.chat-composer__context {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.chat-composer__send-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
 }
 
 .chat-composer__input {
@@ -3861,7 +3791,7 @@ h2 {
 }
 
 .chat-composer__send {
-  align-self: flex-end;
+  margin-left: auto;
 }
 
 .chat-unavailable {
@@ -4321,4 +4251,298 @@ h2 {
 
 .surface-board__bulk-actions {
   margin-top: 0;
+}
+
+/* ---------------------------------------------------------------------------
+   The gallery STAGE — one image set, worked on in place. The stage header
+   carries the Select / Crop / Eyedrop mode toggle, the staged image is the
+   crop surface, and the thumbnail row selects what is staged. Replaces the
+   old two-step flow (pick an image, then open a second panel showing a
+   duplicate of it at another size).
+   --------------------------------------------------------------------------- */
+
+.stage {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.stage-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+  min-width: 0;
+}
+
+/* The inline gallery's version switcher, carried in the stage header. Many
+   versions scroll sideways rather than wrapping the header onto two lines. */
+.stage-head .version-pills-bar {
+  flex: 1 1 auto;
+  min-width: 0;
+  flex-wrap: nowrap;
+  gap: var(--space-2);
+}
+.stage-head .version-pills {
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+.stage-head .version-pill {
+  padding: 0.2rem var(--space-3);
+  font-size: var(--fs-xs);
+}
+.stage-head__title {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+}
+.stage-head__count {
+  font-size: var(--fs-xs);
+  color: var(--color-text-faint);
+}
+
+/* Segmented mode toggle, pushed to the trailing edge of the stage header. */
+.stage-tools {
+  display: flex;
+  flex: none;
+  gap: 2px;
+  margin-left: auto;
+  padding: 2px;
+  background: var(--color-surface-alt);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+.stage-tool {
+  padding: 0.2rem 0.65rem;
+  font: inherit;
+  font-size: var(--fs-xs);
+  color: var(--color-text-muted);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.stage-tool:hover {
+  color: var(--color-text);
+}
+.stage-tool.is-active {
+  background: var(--color-accent);
+  color: #fff;
+}
+.stage-tool:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+
+/* Thumbnail column on the left, the staged image filling the rest. */
+.stage-body {
+  display: flex;
+  align-items: flex-start;
+  min-width: 0;
+}
+
+/* The staged image takes the full width of the stage at its natural aspect
+   ratio — never capped by height. In a capture mode the wrapper takes the
+   pointer gestures, so it must not scroll/pan and must not be draggable. */
+.stage-image {
+  flex: 1 1 auto;
+  min-width: 0;
+  background: var(--color-surface-alt);
+}
+.stage-image__surface {
+  position: relative;
+  display: block;
+  width: 100%;
+  line-height: 0;
+  touch-action: none; /* let a pointer drag draw a marquee, not scroll/pan */
+  user-select: none;
+}
+.stage-image__surface--crop {
+  cursor: crosshair;
+}
+.stage-image__surface--eyedropper {
+  cursor: cell;
+}
+.stage-image__img,
+.stage-image .asset-missing {
+  display: block;
+  width: 100%;
+  height: auto;
+  -webkit-user-drag: none;
+}
+.stage-image .asset-open {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: zoom-in;
+}
+.stage-image__error {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--fs-sm);
+  color: var(--color-danger);
+}
+
+/* The live crop marquee, dimming everything outside the selection. */
+.stage-marquee {
+  position: absolute;
+  border: 2px solid #fff;
+  outline: 1px solid rgba(0, 0, 0, 0.4);
+  box-shadow: 0 0 0 4000px rgba(10, 10, 25, 0.35);
+  border-radius: 2px;
+  pointer-events: none;
+}
+.stage-marquee__size {
+  position: absolute;
+  right: -1px;
+  bottom: -1.4rem;
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: var(--fs-xs);
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Thumbnail column — the stage's image selector, not a separate gallery. */
+.stage-thumbs {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-2);
+  border-right: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+.stage-thumb {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 84px;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  text-align: left;
+}
+.stage-thumb__img,
+.stage-thumb .asset-missing {
+  display: block;
+  width: 84px;
+  height: 56px;
+  object-fit: cover;
+  border: 2px solid transparent;
+  border-radius: var(--radius-sm);
+  opacity: 0.75;
+}
+.stage-thumb:hover .stage-thumb__img {
+  opacity: 1;
+}
+.stage-thumb.is-active .stage-thumb__img,
+.stage-thumb.is-active .asset-missing {
+  border-color: var(--color-accent);
+  opacity: 1;
+}
+.stage-thumb__label {
+  font-size: var(--fs-xs);
+  color: var(--color-text-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.stage-thumb.is-active .stage-thumb__label {
+  color: var(--color-accent);
+}
+.stage-thumb:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+.stage-hint {
+  margin: 0;
+  padding: 0 var(--space-3) var(--space-2);
+  font-size: var(--fs-xs);
+  color: var(--color-text-faint);
+}
+
+/* The capture's natural-pixel size, shown on the resolve panel. */
+.ef-capture-size {
+  margin: 0 0 var(--space-1);
+  font-size: var(--fs-xs);
+  color: var(--color-text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------------------------------------------------------------------------
+   The crop chip — a capture taken on the stage, waiting in the composer. The
+   quick intents beside it resolve it directly (no model in the loop), which is
+   what makes routing free text through the agent safe to add later: a misroute
+   never costs the user the gesture.
+   --------------------------------------------------------------------------- */
+
+.chat-crop-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 2px 6px 2px 3px;
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius-pill);
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.chat-crop-chip__thumb {
+  display: block;
+  width: 34px;
+  height: 26px;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+}
+
+.chat-crop-chip__swatch {
+  display: block;
+  width: 16px;
+  height: 16px;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(0, 0, 0, 0.12);
+}
+
+.chat-crop-chip__clear {
+  padding: 0 2px;
+  border: none;
+  background: none;
+  color: inherit;
+  opacity: 0.6;
+  cursor: pointer;
+  font-size: var(--fs-xs);
+  line-height: 1;
+}
+.chat-crop-chip__clear:hover {
+  opacity: 1;
+}
+
+.chat-quick-intents {
+  display: flex;
+  gap: var(--space-1);
+}
+
+/* The stage's escape hatch to the full resolve panel. */
+.stage-more-options {
+  align-self: flex-start;
+  margin-top: var(--space-2);
+}
+
+/* Keyless: the rail shows only the key notice under its header. */
+.chat-rail > .chat-unavailable {
+  margin: 0 var(--space-4);
 }

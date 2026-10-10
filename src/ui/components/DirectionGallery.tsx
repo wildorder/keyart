@@ -129,18 +129,10 @@ export function DirectionGallery({
   const approved = isPinnedVersion(direction.id, selected.versionId);
   const showSwitcher = direction.versions.length > 1;
 
-  return (
-    <div className="direction-gallery">
-      {/* Description of the active direction. The title lives in the
-          DirectionChrome above. */}
-      <div className="direction-header">
-        <p className="gallery-summary">{selected.summary}</p>
-        {selected.positioning && (
-          <p className="gallery-positioning">{selected.positioning}</p>
-        )}
-      </div>
-
-      {/* Segmented version pills + lighter compare affordance */}
+  // The version switcher rides in the gallery stage's header (and the
+  // description heads the page in DirectionChrome), so the images start right
+  // below the page header instead of under two paragraphs and a tab row.
+  const versionBar = (
       <div className="version-pills-bar">
         {showSwitcher && (
           <div className="version-pills" role="tablist" aria-label="Version history">
@@ -193,7 +185,10 @@ export function DirectionGallery({
           Compare
         </button>
       </div>
+  );
 
+  return (
+    <div className="direction-gallery">
       {compareMode && (
         <div className="version-pills-compare-area">
           {(showSwitcher ? versionsHeadFirst : [selected]).map((v) => {
@@ -235,6 +230,7 @@ export function DirectionGallery({
           isHead={isHead}
           approved={approved}
           reload={reload}
+          stageHeader={versionBar}
         />
       </div>
     </div>
@@ -258,12 +254,16 @@ export function DirectionCardBody({
   isHead,
   approved,
   reload,
+  stageHeader,
 }: {
   directionId: string;
   version: DashboardVersion;
   isHead: boolean;
   approved: boolean;
   reload: () => void;
+  /** Rendered at the start of the gallery stage's header (the inline
+   * gallery puts its version switcher here). Absent → the plain stage title. */
+  stageHeader?: React.ReactNode;
 }) {
   const { pushToast } = useToasts();
   const [editOpen, setEditOpen] = useState(false);
@@ -274,9 +274,6 @@ export function DirectionCardBody({
   // The palette roles the user has locked on the board — threaded up so the
   // unified Regenerate holds them verbatim while the rest re-extract (SC-06/08).
   const [lockedRoles, setLockedRoles] = useState<PaletteRole[]>([]);
-  // The generated image currently open for element-level feedback (crop /
-  // eyedropper), or null when the overlay is closed.
-  const [feedbackPath, setFeedbackPath] = useState<string | null>(null);
 
   const images = version.images;
 
@@ -383,12 +380,8 @@ export function DirectionCardBody({
         imgVersion={imgVersion}
         isHead={isHead}
         directionId={directionId}
-        feedbackPath={feedbackPath}
-        onToggleFeedback={(p) => setFeedbackPath((c) => (c === p ? null : p))}
-        onFeedbackDone={() => {
-          setFeedbackPath(null);
-          reload();
-        }}
+        onFeedbackDone={reload}
+        headerStart={stageHeader}
       />
 
       {/* The deterministic palette + type board, straight from the tokens
@@ -480,7 +473,7 @@ export function DirectionCardBody({
         {isHead && regenOpen && (
           <div className="regen-form">
             <p className="field-hint">
-              One loop: <strong>keep/discard</strong> a region above,{" "}
+              One loop: <strong>crop</strong> a region on the stage above,{" "}
               <strong>lock</strong> swatches on the board, add a{" "}
               <strong>note</strong>, then <strong>Regenerate</strong>. It re-renders
               both graphics from the brief + your locked colors + kept crops +

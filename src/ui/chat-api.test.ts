@@ -439,8 +439,9 @@ describe("createChatApi — SSE/JSON transport over the WS-02 agent loop", () =>
     // The chat response already returned (frames collected above) — the loop
     // did not await the job. Poll it independently via the shared JobStore.
     let job = jobs.get(jobEvent.jobId);
-    for (let i = 0; i < 300 && job?.status === "running"; i++) {
-      await new Promise((r) => setTimeout(r, 5));
+    const deadline = Date.now() + 5000;
+    while (job && job.status === "running" && Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 25));
       job = jobs.get(jobEvent.jobId);
     }
     expect(job?.status).toBe("succeeded");

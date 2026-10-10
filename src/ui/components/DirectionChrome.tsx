@@ -1,18 +1,22 @@
 /**
- * Sticky chrome header for the focused direction — the single-level twin of
- * the deleted two-level chrome. Renders the direction's name + StatusBadge, the
- * four secondary drawer buttons (Brief | Moodboard | Memory | Setup — state
- * owned HERE behind `setOpenDrawer`, the plan-bound setter name), and the
- * primary CTA: **Generate v1** on a draft (via `generateV1Request` — WS-15's
- * positional explore writes v1 into the draft; `regenerate` rejects a
- * zero-version draft) or **Regenerate** otherwise (via `regenerateRequest`).
+ * Sticky chrome header for the focused direction, on two lines.
+ *
+ *   1. IDENTITY — the direction's name and StatusBadge, plus **Generate v1** on a
+ *      draft only (via `generateV1Request` — positional explore writes v1 into
+ *      the draft; `regenerate` rejects a zero-version draft).
+ *   2. NAVIGATION — the four drawer buttons (Brief | Moodboard | Memory | Setup —
+ *      state owned HERE behind `setOpenDrawer`, the plan-bound setter name).
+ *
+ * There is deliberately no header Regenerate: with no input it had nothing to
+ * regenerate from. Iterating lives in the gallery's Regenerate visuals form,
+ * which takes a tweak, feedback and locks.
  *
  * There is no back button: the sidebar direction list is the switcher, so the
  * workspace is never a dead end to escape from.
  */
 import React, { useEffect, useState } from "react";
-import type { ChromePanel, DashboardDirection } from "../types";
-import { generateV1Request, regenerateRequest } from "../direction-actions.js";
+import type { ChromePanel, DashboardDirection, DashboardVersion } from "../types";
+import { generateV1Request } from "../direction-actions.js";
 import { NotesComposer } from "./NotesComposer";
 import { MemoryPanel } from "./MemoryPanel";
 import { selectDecisions } from "./memory-select.js";
@@ -25,6 +29,11 @@ import { JobProgress, useAction } from "./JobProgress";
 
 export interface DirectionChromeProps {
   direction: DashboardDirection;
+  /** The version on screen; its summary describes the page. (Its positioning
+   * statement is not shown here — it feeds the guides and is editable from the
+   * gallery's Edit form; the brief carries the authored positioning.)
+   * null for a draft, which has no version yet. */
+  version?: DashboardVersion | null;
   reload: () => void;
 }
 
@@ -65,7 +74,7 @@ const PANEL_ICONS: Record<Exclude<ChromePanel, null>, JSX.Element> = {
   ),
 };
 
-export function DirectionChrome({ direction, reload }: DirectionChromeProps) {
+export function DirectionChrome({ direction, version = null, reload }: DirectionChromeProps) {
   // The open secondary drawer — `setOpenDrawer` is the plan-bound setter name.
   const [openDrawer, setOpenDrawer] = useState<ChromePanel>(null);
 
@@ -86,13 +95,6 @@ export function DirectionChrome({ direction, reload }: DirectionChromeProps) {
    * id, no `count`; never `regenerateRequest` (WS-15 rejects a draft). */
   const startGenerateV1 = (): void => {
     const req = generateV1Request(direction.id);
-    primary.start(req.path, req.body);
-  };
-
-  /** Non-draft: the quick Regenerate — the rich lock/feedback form lives in
-   * the gallery card; this is the chrome's one-click iterate. */
-  const startRegenerate = (): void => {
-    const req = regenerateRequest(direction.id);
     primary.start(req.path, req.body);
   };
 
@@ -150,26 +152,15 @@ export function DirectionChrome({ direction, reload }: DirectionChromeProps) {
 
   return (
     <>
-      <header className="direction-chrome">
-        <h2 className="chrome-direction-name">{direction.name}</h2>
-        <StatusBadge status={direction.status} />
-
-        <div className="chrome-actions">
-          {(Object.keys(PANEL_LABELS) as Array<Exclude<ChromePanel, null>>).map(
-            (panel) => (
-              <button
-                key={panel}
-                type="button"
-                className="chrome-action-btn"
-                aria-pressed={openDrawer === panel}
-                onClick={() => setOpenDrawer(openDrawer === panel ? null : panel)}
-              >
-                <span className="chrome-action-icon">{PANEL_ICONS[panel]}</span>
-                <span className="chrome-action-label">{PANEL_LABELS[panel]}</span>
-              </button>
-            ),
-          )}
-          {direction.isDraft ? (
+      {/* IDENTITY: what you are looking at — the name and status, then the
+          viewed version's description. It scrolls away with the page; only the
+          drawer bar below stays pinned. */}
+      <div className="direction-identity">
+        <div className="chrome-line chrome-line--identity">
+          <h2 className="chrome-direction-name">{direction.name}</h2>
+          <StatusBadge status={direction.status} />
+          <div className="chrome-line__spacer" />
+          {direction.isDraft && (
             <button
               type="button"
               className="btn btn-primary chrome-primary-cta"
@@ -178,16 +169,34 @@ export function DirectionChrome({ direction, reload }: DirectionChromeProps) {
             >
               {primary.running ? "Generating…" : "Generate v1"}
             </button>
-          ) : (
-            <button
-              type="button"
-              className="btn btn-primary chrome-primary-cta"
-              disabled={primary.running}
-              onClick={startRegenerate}
-            >
-              {primary.running ? "Regenerating…" : "Regenerate"}
-            </button>
           )}
+        </div>
+        {version && (
+          <div className="direction-header">
+            <p className="gallery-summary">{version.summary}</p>
+          </div>
+        )}
+      </div>
+
+      {/* NAVIGATION: the drawers, pinned to the top of the workspace. */}
+      <header className="direction-chrome">
+        <div className="chrome-line chrome-line--nav">
+          <div className="chrome-actions">
+            {(Object.keys(PANEL_LABELS) as Array<Exclude<ChromePanel, null>>).map(
+              (panel) => (
+                <button
+                  key={panel}
+                  type="button"
+                  className="chrome-action-btn"
+                  aria-pressed={openDrawer === panel}
+                  onClick={() => setOpenDrawer(openDrawer === panel ? null : panel)}
+                >
+                  <span className="chrome-action-icon">{PANEL_ICONS[panel]}</span>
+                  <span className="chrome-action-label">{PANEL_LABELS[panel]}</span>
+                </button>
+              ),
+            )}
+          </div>
         </div>
       </header>
 

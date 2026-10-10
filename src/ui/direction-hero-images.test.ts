@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { heroImageOf, secondaryImagesOf } from "./direction-hero-images.js";
+import {
+  galleryImagesOf,
+  heroImageOf,
+  secondaryImagesOf,
+  stageImagesOf,
+} from "./direction-hero-images.js";
 import type { DashboardVersion, DirectionImages } from "./types.js";
 
 function makeVersion(images?: DirectionImages): DashboardVersion {
@@ -65,5 +70,59 @@ describe("secondaryImagesOf", () => {
     const result = secondaryImagesOf(v);
     expect(result.some((r) => r.path === "/board.svg")).toBe(false);
     expect(result.some((r) => r.path.endsWith(".svg"))).toBe(false);
+  });
+});
+
+describe("stageImagesOf", () => {
+  it("includes the hero — on the stage every image is a peer", () => {
+    const v = makeVersion({ styleTile: "/tile.png", homepageMockup: "/mockup.png" });
+    expect(stageImagesOf(v).map((s) => s.path)).toEqual(["/tile.png", "/mockup.png"]);
+  });
+
+  it("orders styleTile → homepageMockup → styleBoard", () => {
+    const v = makeVersion({
+      styleTile: "/tile.png",
+      homepageMockup: "/mockup.png",
+      styleBoard: "/board.png",
+    });
+    expect(stageImagesOf(v).map((s) => s.path)).toEqual([
+      "/tile.png",
+      "/mockup.png",
+      "/board.png",
+    ]);
+  });
+
+  it("stays index-aligned with galleryImagesOf so the thumb row and lightbox agree", () => {
+    const v = makeVersion({
+      styleTile: "/tile.png",
+      homepageMockup: "/mockup.png",
+      styleBoard: "/board.png",
+    });
+    expect(stageImagesOf(v).map((s) => s.path)).toEqual(
+      galleryImagesOf(v, 0).map((g) => g.path),
+    );
+  });
+
+  it("drops absent images rather than emitting holes", () => {
+    const v = makeVersion({ homepageMockup: "/mockup.png" });
+    expect(stageImagesOf(v).map((s) => s.path)).toEqual(["/mockup.png"]);
+  });
+
+  it("returns [] when the version has no images at all", () => {
+    expect(stageImagesOf(makeVersion(undefined))).toEqual([]);
+  });
+
+  it("never includes styleBoardSvg (the deterministic projection is not a target)", () => {
+    const v = makeVersion({ styleTile: "/tile.png", styleBoardSvg: "/board.svg" });
+    expect(stageImagesOf(v).map((s) => s.path)).toEqual(["/tile.png"]);
+  });
+
+  it("gives every staged image a non-empty label", () => {
+    const v = makeVersion({
+      styleTile: "/tile.png",
+      homepageMockup: "/mockup.png",
+      styleBoard: "/board.png",
+    });
+    for (const img of stageImagesOf(v)) expect(img.label.length).toBeGreaterThan(0);
   });
 });

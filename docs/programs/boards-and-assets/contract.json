@@ -34,11 +34,6 @@
       "AGENTS.md"
     ],
     "excludes": [],
-    "permissions": [
-      "After explicit ratification, implement and test the scoped program in isolated local worktrees and integrate verified commits on the program branch",
-      "Install declared development dependencies and Chromium for verification; use mocked model calls and temporary consuming-project fixtures",
-      "Author planning documents and run isolated gate audits before ratification"
-    ],
     "forbiddenActions": [
       "Publish, tag, deploy or push",
       "Run the implementation before human ratification",

@@ -57,6 +57,8 @@ handoff to the run; this authorizes the planning commit and ratification, with
 execution left to the run-program handoff.
 No implementation source has changed.
 
+The human requested a boards-and-assets planning refresh using the latest skill and Nightshift version. The installed skill matches the upstream checkout at 3b0aa5e, and the CLI is linked to that checkout. The existing eight decisions remain answered. This refresh removes obsolete scope.permissions metadata, clarifies that scopes describe expected work rather than job fences, and refreshes the gate audit without implementing the already-approved repairs.
+
 ## Excerpts
 
 <!-- nightshift:session codex 01a1276f-ea1e-7cd2-8593-190e8f207e5e 82 -->
@@ -841,3 +843,38 @@ ratify and hand to run
 **Codex** · 2026-10-10 21:50 UTC
 
 I’ll use `plan-program` to commit the approved plan on its program branch, ratify it, and prepare the handoff. I’ll stop before starting the build run.
+
+<!-- nightshift:session codex 01a12803-3c3f-7063-bd5a-207043d72615 7 -->
+### Codex session `01a12803`
+
+*Kept 6 of 7 messages; the rest led to nothing in the plan.*
+
+<!-- nightshift:message 1 human 2026-10-10T22:51:26.898Z -->
+**Human** · 2026-10-10 22:51 UTC
+
+/$plan-program boards-and-assets with the latest skill and nightshift version
+
+<!-- nightshift:message 2 assistant 2026-10-10T22:51:31.553Z -->
+**Codex** · 2026-10-10 22:51 UTC
+
+I’m using the plan-program skill to review `boards-and-assets`, verify the installed Nightshift and skill versions, and bring the plan up to the current readiness checks.
+
+<!-- nightshift:message 3 assistant 2026-10-10T22:52:29.469Z -->
+**Codex** · 2026-10-10 22:52 UTC
+
+The existing plan already records your eight product and gate-repair decisions. The current CLI supports the required v1 workflow; its gate record still matches but is marked “repairing” for the approved React typecheck and test-cleanup fixes. I also found an obsolete `scope.permissions` field that the latest skill says to remove.
+
+<!-- nightshift:message 4 assistant 2026-10-10T22:52:37.370Z -->
+**Codex** · 2026-10-10 22:52 UTC
+
+The installed skill exactly matches Nightshift’s latest upstream commit (`3b0aa5e`), and the CLI is linked to that checkout. Readiness already passes. I’m refreshing the gate audit because the skill requires a fresh audit for a “repairing” record, then updating the plan’s obsolete metadata. The previous full audit took roughly four minutes.
+
+<!-- nightshift:message 6 assistant 2026-10-10T22:55:14.953Z -->
+**Codex** · 2026-10-10 22:55 UTC
+
+The saved conversation includes your earlier “ratify and hand to run” instruction, so that authorization is already recorded. I’ll carry it forward after verification. The current refresh changes planning metadata only; the full test audit is taking longer than the earlier run.
+
+<!-- nightshift:message 7 assistant 2026-10-10T22:55:44.015Z -->
+**Codex** · 2026-10-10 22:55 UTC
+
+The fresh audit passed: build, typecheck, and tests all green; runtime requirements are satisfied. Checks took about 132 seconds, plus 20 seconds of setup. Nightshift is now recording the audit, which repeats the checks and retains the two approved findings for S-00.

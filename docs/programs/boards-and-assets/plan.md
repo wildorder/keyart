@@ -3,7 +3,7 @@
 ## Overview
 
 Authored draft for review, not ratified. The contract holds scope, criteria,
-dependencies, permissions and decision answers. D-01 through D-08 are answered.
+dependencies, forbidden actions and decision answers. D-01 through D-08 are answered.
 Keyart will separate advancing the brand foundation, exploring its applications,
 and producing usable artwork while retaining the just-landed direction-first
 studio. This is an authoring workflow, not a design canvas or publishing tool.
@@ -331,6 +331,25 @@ retargeted approvals, local intent leaking into memory, false legacy provenance
 and retries duplicating paid work. Tests target these boundaries, not file existence
 alone. Actual artwork still needs creative review; consistency is not guaranteed.
 
-Planning files are locally ignored. Review conversation.md before later committing;
-stage only exact plan/config files as needed, never broadly add ignored files.
-This authoring request authorizes no implementation, ratification or run.
+The planning files are tracked on program/boards-and-assets. Review conversation.md
+before committing this refresh; stage only the exact planning files.
+
+## Planning tool refresh
+
+On 2026-10-10, the installed plan-program skill matched the upstream Nightshift
+checkout at 3b0aa5e byte for byte. The CLI is linked to that checkout; its package
+reports 0.0.0, so the upstream commit and supported v1 commands identify the version.
+The checkout includes local CLI-init edits, which this review leaves intact.
+The obsolete scope.permissions field was removed. Scope describes expected work
+and overlap; it does not fence jobs. forbiddenActions remains the action boundary.
+The eight answered decisions and the product approach are retained.
+
+The refreshed audit passed on a08de175: install 16.2s, browser setup 3.3s,
+build 12.6s, typecheck 10.2s, tests 108.9s. Rule 8 reported every runtime pinned
+and met. Checks total 131.7s per verification, or 263.4 aggregate check-seconds
+for two simultaneous verifications (151.2s per checkout including setup).
+The existing coverage gap and cleanup race remain findings even on a green run.
+The recording pass also passed (setup 10.4s + 3.5s, build 12.5s, typecheck 8.8s,
+tests 57.0s). The refreshed control-plane record is repairing, fingerprint
+eeae15527d71, with F-01/D-06 and F-02/D-07 retained. Its machinery fingerprint
+now includes the browser layout test, action-roster checks and JobStore.

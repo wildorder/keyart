@@ -168,7 +168,7 @@ afterEach(async () => {
 });
 
 describe("writeDirectionVersion — WS-03 directive block injection", () => {
-  it("directive block lands under the content lock in BOTH written prompt .md files (SC-03/SC-04)", async () => {
+  it("directive block lands under the content lock in the foundation prompt (SC-03/SC-04)", async () => {
     const config = buildTestConfig(tmpDir);
     const directionsDir = directionsRoot(tmpDir, config);
     await createDirection(tmpDir, config, "direction-a");
@@ -190,12 +190,7 @@ describe("writeDirectionVersion — WS-03 directive block injection", () => {
       path.join(result.versionDir, "style-tile-prompt.md"),
       "utf-8",
     );
-    const homepageMd = await fs.readFile(
-      path.join(result.versionDir, "homepage-mockup-prompt.md"),
-      "utf-8",
-    );
-
-    for (const prompt of [styleMd, homepageMd]) {
+    for (const prompt of [styleMd]) {
       // Content lock present.
       expect(prompt).toContain("CONTENT LOCK");
 
@@ -243,12 +238,7 @@ describe("writeDirectionVersion — WS-03 directive block injection", () => {
     const expected = `${version.styleTilePrompt}\n\n${composeContentLock(version)}\n`;
     expect(styleMd).toBe(expected);
 
-    const homepageMd = await fs.readFile(
-      path.join(result.versionDir, "homepage-mockup-prompt.md"),
-      "utf-8",
-    );
-    const expectedHome = `${version.homepageMockupPrompt}\n\n${composeContentLock(version)}\n`;
-    expect(homepageMd).toBe(expectedHome);
+    expect(await exists(path.join(result.versionDir, "homepage-mockup-prompt.md"))).toBe(false);
   });
 
   it("dry-run parity (SC-11) — no key + skipImages unset still writes prompt .md files with directive tail and never throws", async () => {
@@ -272,7 +262,7 @@ describe("writeDirectionVersion — WS-03 directive block injection", () => {
     expect(result.extracted).toBe(false);
     expect(result.imageSkips).toHaveLength(0);
 
-    // Both prompt .md files still written with the directive tail.
+    // The foundation prompt is still written with the directive tail.
     const styleMd = await fs.readFile(
       path.join(result.versionDir, "style-tile-prompt.md"),
       "utf-8",
@@ -314,6 +304,38 @@ describe("writeDirectionVersion — WS-03 directive block injection", () => {
 });
 
 describe("writeDirectionVersion — existing contracts", () => {
+  it("foundation-only generation emits one tile and preserves historical bytes on collision", async () => {
+    const openaiModule = await import("../openai.js");
+    vi.spyOn(openaiModule, "hasApiKey").mockReturnValue(true);
+    const generate = vi.spyOn(openaiModule, "generateImage").mockResolvedValue({ written: true, dryRun: false });
+    vi.spyOn(openaiModule, "describeImageBrand").mockResolvedValue({
+      read: { colors: [], type: {} }, dryRun: false,
+    });
+    const config = buildTestConfig(tmpDir);
+    await createDirection(tmpDir, config, "direction-a");
+    const opts = { cwd: tmpDir, config, directionsDir: directionsRoot(tmpDir, config),
+      directionId: "direction-a", version: makeVersion("v-foundation"), referenceImagePaths: [] };
+    const result = await writeDirectionVersion(opts);
+    expect(generate).toHaveBeenCalledTimes(1);
+    expect(generate.mock.calls[0][0].outPath).toMatch(/style-tile\.png$/);
+    expect(await exists(path.join(result.versionDir, "homepage-mockup-prompt.md"))).toBe(false);
+    const before = await fs.readFile(path.join(result.versionDir, "direction-version.json"), "utf-8");
+    await expect(writeDirectionVersion({ ...opts, version: { ...opts.version, summary: "overwrite" } })).rejects.toThrow("already exists");
+    expect(await fs.readFile(path.join(result.versionDir, "direction-version.json"), "utf-8")).toBe(before);
+    expect(generate).toHaveBeenCalledTimes(1);
+  });
+
+  it("concurrent reservations of one version never share an output directory", async () => {
+    const config = buildTestConfig(tmpDir);
+    await createDirection(tmpDir, config, "direction-a");
+    const opts = { cwd: tmpDir, config, directionsDir: directionsRoot(tmpDir, config),
+      directionId: "direction-a", referenceImagePaths: [] };
+    const results = await Promise.allSettled(["first", "second"].map(summary =>
+      writeDirectionVersion({ ...opts, version: { ...makeVersion("v-race"), summary } })));
+    expect(results.filter(r => r.status === "fulfilled")).toHaveLength(1);
+    expect((await createDirectionCore(tmpDir, config).get("direction-a")).versions).toEqual(["v-race"]);
+  });
+
   it("writes a version folder + advances the direction record (dry-run, no images)", async () => {
     const config = buildTestConfig(tmpDir);
     const directionsDir = directionsRoot(tmpDir, config);
@@ -338,7 +360,7 @@ describe("writeDirectionVersion — existing contracts", () => {
     expect(await exists(path.join(verDir, "brief-snapshot.md"))).toBe(true);
     expect(await exists(path.join(verDir, "context-snapshot.md"))).toBe(true);
     expect(await exists(path.join(verDir, "style-tile-prompt.md"))).toBe(true);
-    expect(await exists(path.join(verDir, "homepage-mockup-prompt.md"))).toBe(true);
+    expect(await exists(path.join(verDir, "homepage-mockup-prompt.md"))).toBe(false);
     // No image attempted in dry-run.
     expect(await exists(path.join(verDir, "style-tile.png"))).toBe(false);
 
@@ -403,7 +425,7 @@ describe("writeDirectionVersion — existing contracts", () => {
       lockedColors: [LOCK],
     });
 
-    expect(genSpy).toHaveBeenCalledTimes(2);
+    expect(genSpy).toHaveBeenCalledTimes(1);
     expect(result.extracted).toBe(true);
 
     const persisted = JSON.parse(

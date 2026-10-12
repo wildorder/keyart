@@ -7,6 +7,7 @@ import { CommandError } from "../errors.js";
 import { VersionConflictError } from "../store/versioned-store.js";
 import { ensureDir, pathExists, readTextFile, writeJsonFile } from "../fs.js";
 import { createDirectionCore } from "../direction/core.js";
+import { runDeleteDirectionVersion } from "../direction/delete-version.js";
 import { renderBrief } from "../direction/render-brief.js";
 import { BrandBriefSchema, type BrandBriefPatch } from "../direction/schema.js";
 import { proposeBriefPatch } from "../direction/brief-map.js";
@@ -39,14 +40,17 @@ import { FONT_PAIRINGS } from "../brand/fonts.js";
 import type { AssetRef, ReferenceIntent } from "../direction/schema.js";
 import type { DirectionTokens, PaletteRole, PaletteToken } from "../types.js";
 import type { JobStore } from "./jobs.js";
-import { runAssetExtract, runAssetRegenerate } from "../asset/extract.js";
+import { runAssetExtract, runAssetRegenerate, runAssetGenerate } from "../asset/extract.js";
+import { resolveFoundation, assertFoundationPath, assertFoundationId } from "../direction/foundation.js";
+import { readBoardRevision } from "../board/board-store.js";
+import { pinGenerationArguments } from "../agent/pin-generation.js";
 import { runAssetPack } from "../asset/pack.js";
 import {
   listAssetIds,
   readAssetIndex,
   retireExtractedAsset,
 } from "../asset/asset-store.js";
-import { AssetSourceImageSchema, type AssetSourceImage } from "../asset/schema.js";
+import type { AssetSourceImage } from "../asset/schema.js";
 import { createSurfaceCore, SLOT_ORIGINS, type SlotOrigin, type SlotPatch } from "../surface/store.js";
 import { isSlotRetired, type SlotKind, type SurfaceSlot } from "../surface/schema.js";
 import { runSurfaceFill } from "../surface/fill.js";
@@ -274,6 +278,7 @@ export const RESOURCE_ROUTE_TEMPLATES: readonly string[] = [
   "POST /api/directions/:sourceId/create",
   "POST /api/directions/:sourceId/fork",
   "POST /api/directions/:id/versions",
+  "DELETE /api/directions/:id/versions/:versionId",
   "PUT /api/directions/:id",
   "POST /api/directions/:id/feedback",
   "PATCH /api/directions/:id/brief",
@@ -322,6 +327,7 @@ const FORK_RE = /^\/api\/directions\/([^/]+)\/fork$/;
 // version is appended under `…/versions` — ONE id, the aggregate root.
 const DIRECTION_RE = /^\/api\/directions\/([^/]+)$/;
 const DIRECTION_VERSIONS_RE = /^\/api\/directions\/([^/]+)\/versions$/;
+const DIRECTION_VERSION_RE = /^\/api\/directions\/([^/]+)\/versions\/([^/]+)$/;
 const RECONCILIATION_RE = /^\/api\/directions\/([^/]+)\/reconciliation$/;
 const RECONCILIATION_RESOLVE_RE = /^\/api\/directions\/([^/]+)\/reconciliation\/resolve$/;
 
@@ -405,7 +411,6 @@ function parseDirectionEdits(body: Record<string, unknown>): DirectionEdits {
         }
       : undefined,
     styleTilePrompt: str(body.styleTilePrompt),
-    homepageMockupPrompt: str(body.homepageMockupPrompt),
     copyExamples: copyRaw
       ? {
           headline: str(copyRaw.headline),
@@ -619,11 +624,23 @@ async function dispatch(
     return;
   }
 
+  const versionMatch = pathname.match(DIRECTION_VERSION_RE);
+  if (versionMatch && method === "DELETE") {
+    const body = asRecord(await readJsonBody(req));
+    if (typeof body.expectedVersion !== "number" || !Number.isInteger(body.expectedVersion) || body.expectedVersion < 1) {
+      throw new CommandError("Deleting a direction version requires a positive integer expectedVersion. Refresh and confirm the exact version again.");
+    }
+    const result = await runDeleteDirectionVersion({ cwd,
+      directionId: decodeURIComponent(versionMatch[1]), versionId: decodeURIComponent(versionMatch[2]),
+      expectedVersion: body.expectedVersion });
+    sendJson(res, 200, result);
+    return;
+  }
+
   // POST /api/directions/:id/versions — append the edited fields
   // as a NEW version of the direction (the head advances). This same handler
   // backs RESTORE: the studio posts a chosen old version's content as the `edits`
-  // body, which is appended verbatim as the new head. Checked BEFORE the in-place
-  // route since its path is a superset.
+  // body; saving regenerates a new foundation, never an old tile with new tokens.
   const versionsMatch = pathname.match(DIRECTION_VERSIONS_RE);
   if (versionsMatch && method === "POST") {
     // ONE id — the aggregate root that owns the version (C-4i collapse).
@@ -632,13 +649,14 @@ async function dispatch(
     const result = await runSaveVariant({
       cwd,
       directionId,
+      versionId: typeof body.versionId === "string" ? body.versionId : undefined,
       edits: parseDirectionEdits(body),
     });
     sendJson(res, 201, result);
     return;
   }
 
-  // PUT /api/directions/:id — in-place edit of the head version.
+  // PUT /api/directions/:id — append the edit as a new immutable foundation.
   const directionMatch = pathname.match(DIRECTION_RE);
   if (directionMatch && method === "PUT") {
     // ONE id — the aggregate root (C-4i collapse).
@@ -647,6 +665,7 @@ async function dispatch(
     const result = await runEditDirection({
       cwd,
       directionId,
+      versionId: typeof body.versionId === "string" ? body.versionId : undefined,
       edits: parseDirectionEdits(body),
     });
     sendJson(res, 200, result);
@@ -1311,6 +1330,11 @@ async function handleElementFeedback(
   const targetDirectionId = directionIdFromUpload;
   const core = createDirectionCore(cwd, config);
   await core.get(targetDirectionId); // throws CommandError (400) when the direction is missing.
+  // Historical captures keep their own source identity; never reinterpret them
+  // using the direction's latest version or the studio's changed focus.
+  if (fields.versionId || fields.boardId || fields.revisionId) {
+    await resolveCaptureSource(cwd, targetDirectionId, fields);
+  }
 
   // Validate verb.
   const verb = fields.verb;
@@ -1357,7 +1381,7 @@ async function handleElementFeedback(
     await core.appendFeedback(targetDirectionId, {
       body: discardBody(note),
       author: "serve",
-      source: "element-feedback",
+      source: fields.boardId ? `element-feedback:${fields.boardId}@${fields.revisionId}` : "element-feedback",
       asset: rel,
     });
     recorded.asset = rel;
@@ -1399,7 +1423,21 @@ async function handleElementFeedback(
 // Asset actions + pack (WS-05: asset-extraction)
 // ---------------------------------------------------------------------------
 
-const ASSET_SOURCE_IMAGES: readonly string[] = AssetSourceImageSchema.options;
+const ASSET_SOURCE_IMAGES: readonly string[] = ["styleTile"];
+
+async function resolveCaptureSource(cwd: string, directionId: string, fields: Record<string, string>): Promise<string> {
+  assertFoundationId(directionId, "direction");
+  const config = await loadConfig(cwd);
+  let versionId = fields.versionId?.trim();
+  if (fields.boardId) {
+    if (!fields.revisionId) throw new CommandError("A Board capture requires its exact revisionId.");
+    const source = await readBoardRevision(path.join(directionsRoot(cwd, config), directionId), fields.boardId, fields.revisionId);
+    if (versionId && versionId !== source.foundation.versionId) throw new CommandError("The capture foundation does not match its Board revision.");
+    versionId = source.foundation.versionId;
+  } else if (fields.revisionId) throw new CommandError("revisionId requires a Board source.");
+  await resolveFoundation({ cwd, config, directionId, versionId: versionId ?? "" });
+  return versionId!;
+}
 
 async function handleAssetExtract(
   req: IncomingMessage,
@@ -1432,6 +1470,8 @@ async function handleAssetExtract(
     }
   }
 
+  const versionId = await resolveCaptureSource(cwd, directionId, fields);
+
   // Optional crop — the studio's client-side crop, sent under the field name
   // `crop`; the first image file part is taken (parseMultipart does not record
   // per-part field names). Written in the request scope, before the job starts,
@@ -1443,6 +1483,9 @@ async function handleAssetExtract(
     const config = await loadConfig(cwd);
     await createDirectionCore(cwd, config).get(directionId); // 400 when the direction is missing
     const destDir = path.join(directionsRoot(cwd, config), directionId, "assets", "extract-crops");
+    const directionDir = path.join(directionsRoot(cwd, config), directionId);
+    if (await pathExists(path.dirname(destDir))) await assertFoundationPath(directionDir, path.dirname(destDir));
+    if (await pathExists(destDir)) await assertFoundationPath(directionDir, destDir);
     await ensureDir(destDir);
     const safeName = sanitizeUploadName(files[0].filename);
     const finalPath = resolveUnderCwd(cwd, await nonClobberingPath(destDir, safeName));
@@ -1456,7 +1499,9 @@ async function handleAssetExtract(
       directionId,
       describe,
       image: (imageRaw || undefined) as AssetSourceImage | undefined,
-      versionId: fields.versionId?.trim() || undefined,
+      versionId,
+      boardId: fields.boardId || undefined,
+      revisionId: fields.revisionId || undefined,
       cropPath,
       name: fields.name?.trim() || undefined,
     }),
@@ -1486,17 +1531,39 @@ async function handleAssetRegenerate(
   if (body.remember !== undefined && typeof body.remember !== "boolean") {
     throw new CommandError("remember must be a boolean.");
   }
+  for (const field of ["versionId", "revisionId"] as const) {
+    if (body[field] !== undefined && (typeof body[field] !== "string" || !body[field].trim())) {
+      throw new CommandError(`${field} must be a nonempty version id.`);
+    }
+  }
+  const pinned = await pinGenerationArguments(cwd, "asset_revise", {
+    direction: directionId, assetId, revision: body.revisionId, version: body.versionId,
+  }, { directionId });
 
   const job = jobs.start("asset", () =>
     runAssetRegenerate({
       cwd,
       directionId,
       assetId,
+      revisionId: String(pinned.revision),
+      versionId: String(pinned.version),
       tweak,
       remember: body.remember as boolean | undefined,
       author: "serve",
     }),
   );
+  sendJson(res, 202, { jobId: job.id });
+}
+
+async function handleAssetGenerate(req: IncomingMessage, res: ServerResponse, cwd: string, jobs: JobStore): Promise<void> {
+  const body = asRecord(await readJsonBody(req));
+  const directionId = typeof body.directionId === "string" ? body.directionId : "";
+  const versionId = typeof body.versionId === "string" ? body.versionId : "";
+  const describe = typeof body.describe === "string" ? body.describe.trim() : "";
+  if (!describe) throw new CommandError("Generate asset requires a describe field.");
+  await resolveFoundation({ cwd, config: await loadConfig(cwd), directionId, versionId });
+  const name = typeof body.name === "string" ? body.name : undefined;
+  const job = jobs.start("asset", () => runAssetGenerate({ cwd, directionId, versionId, describe, name }));
   sendJson(res, 202, { jobId: job.id });
 }
 
@@ -1529,7 +1596,13 @@ export function createAssetActionsApi(opts: {
       });
       return;
     }
-    if (pathname === "/api/actions/asset-regenerate") {
+    if (pathname === "/api/actions/asset-generate") {
+      void handleAssetGenerate(req, res, cwd, jobs).catch((err) => {
+        const { status, body } = toHttpError(err); sendJson(res, status, body);
+      });
+      return;
+    }
+    if (pathname === "/api/actions/asset-regenerate" || pathname === "/api/actions/asset-revise") {
       void handleAssetRegenerate(req, res, cwd, jobs).catch((err) => {
         const { status, body } = toHttpError(err);
         sendJson(res, status, body);
@@ -2000,14 +2073,13 @@ async function dispatchAction(
   }
 
   if (segment === "regenerate") {
-    // Direction-addressed: regenerate reads the direction's HEAD and APPENDS a
-    // new version. No `runId` — a stray one in the body is ignored (no run
-    // addressing).
+    // The selected source is pinned by the studio before confirmation.
     const directionId = body.directionId as string | undefined;
     if (typeof directionId !== "string" || directionId === "") {
       throw new CommandError("Regenerate visuals requires a `directionId`.");
     }
     const tweak = typeof body.tweak === "string" ? body.tweak : undefined;
+    const versionId = typeof body.versionId === "string" ? body.versionId : undefined;
     // SC-06/SC-08/SC-13: lock roles (incl. a rerolled palette pushed in as
     // `lockedColors`) across the regenerate + a one-shot generic feedback note.
     // Malformed roles/hexes throw a 400 (via `normalizeHex`); absent ⇒ undefined.
@@ -2018,6 +2090,7 @@ async function dispatchAction(
       runRegenerateVisuals({
         cwd,
         directionId,
+        versionId,
         tweak,
         lockedRoles: lockedRoles.length > 0 ? lockedRoles : undefined,
         lockedColors: lockedColors.length > 0 ? lockedColors : undefined,

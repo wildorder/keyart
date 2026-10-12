@@ -4,7 +4,7 @@
 
 The server exposes a small set of **capability-facade tools** to a coding agent — three domain facades plus one progressive help tool:
 
-- **`keyart_brand`** — brand directions + per-direction memory, global rules, extracted assets, and the demand-side surface manifest (`direction`, `explore`, `regenerate`, `approve`, `rule`, `promote`, `asset`, `surface`). The full fourteen-verb `direction` family (`new|list|show|status|fork|create|archive|reject|park|revive|brief …|feedback|memory …|reconcile`), the three-form `explore` (positional / `--describe` / `--from`), run-level `--reference`/`--intent`, `asset extract|regenerate|list|remove|pack`, and `surface schema|show|set|patch|request|retire|bind|fill|scan` dispatch here like any other brand command.
+- **`keyart_brand`** — brand directions + per-direction memory, global rules, named Boards, usable assets, and the demand-side surface manifest (`direction`, `explore`, `board`, `regenerate`, `approve`, `rule`, `promote`, `asset`, `surface`). The full `direction` family (`new|list|show|status|fork|create|revise|archive|reject|park|revive|brief …|feedback|memory …|reconcile`), the three-form `explore` (positional / `--describe` / `--from`), run-level `--reference`/`--intent`, `board create|revise|update|list|show|retire`, `asset generate|extract|revise|regenerate|list|remove|pack`, and `surface schema|show|set|patch|request|retire|bind|fill|scan` dispatch here like any other brand command.
 - **`keyart_implement`** — turn the approved direction into page instructions and verify the built UI (`brief`, `audit`).
 - **`keyart_setup`** — scaffold a project and check readiness (`init`, `doctor`).
 - **`keyart_help`** — progressive docs: a grouped command index, one command's full usage, a single domain's commands, or the end-to-end workflow.
@@ -58,6 +58,29 @@ keyart_brand { "command": "explore", "input": ["--describe", "warm", "editorial"
 // 3. Approve one of them
 keyart_brand { "command": "approve", "input": ["direction-a"] }
 ```
+
+## Foundations, Boards, and usable artwork
+
+`direction revise` and its `regenerate` alias append one foundation. They never
+cascade into existing Boards/assets/approval. Create Board or generate asset with
+an explicit foundation `--version`; drafts teach Generate v1 first. Board revision
+takes independent `--revision` source and `--version` target (latest direction
+head by default), while asset revision retains its source foundation.
+
+```jsonc
+keyart_brand { "command": "board", "input": ["create", "--direction", "direction-a", "--version", "v1", "--name", "Launch", "--describe", "An Instagram announcement"] }
+keyart_brand { "command": "board", "input": ["revise", "launch", "--direction", "direction-a", "--revision", "r1", "--version", "v2"] }
+keyart_brand { "command": "asset", "input": ["generate", "--direction", "direction-a", "--version", "v2", "--name", "Campaign art", "--describe", "Square editorial illustration"] }
+keyart_brand { "command": "board", "input": ["update", "--direction", "direction-a", "--version", "v2"] }
+// Retry an existing capture; successful entries do not generate again:
+keyart_brand { "command": "board", "input": ["update", "--direction", "direction-a", "--resume", "<batchId>"] }
+```
+
+These are facade-dispatched commands, not extra MCP tools. An external MCP caller
+supplies its intended ids directly. The studio chat front-end materializes ids and
+batch captures before its existing confirmation gate, then replays the exact
+inputs. Keyless and missing-tile attempts remain pending, with prompts and honest
+per-item outcomes. Reads do not migrate records or write bindings.
 
 ## Notes
 

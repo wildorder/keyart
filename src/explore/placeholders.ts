@@ -101,7 +101,6 @@ function buildBaseTemplates(snippet: string): SeedDirection[] {
         layout: "Grid-aligned with clean, sharp geometry.",
         rhythm: "Decisive, high-energy pacing.",
       },
-      homepageMockupPrompt: `Design a bold, modern homepage mockup for a brand described as: ${snippet.slice(0, 100)}. Use geometric shapes, strong contrast, and sans-serif typography.`,
       styleTilePrompt: `Create a style tile for a bold, modern brand: ${snippet.slice(0, 100)}. Include color swatches (dark navy, white, electric blue accent), typography samples (geometric sans-serif), and UI element examples.`,
       copyExamples: {
         headline: "Built for what comes next",
@@ -137,7 +136,6 @@ function buildBaseTemplates(snippet: string): SeedDirection[] {
         imagery: "Organic illustration with a hand-made feel.",
         texture: "Soft shadows and tactile, approachable surfaces.",
       },
-      homepageMockupPrompt: `Design a warm, approachable homepage mockup for a brand described as: ${snippet.slice(0, 100)}. Use rounded shapes, warm colors, and friendly typography.`,
       styleTilePrompt: `Create a style tile for a warm, approachable brand: ${snippet.slice(0, 100)}. Include color swatches (warm cream, terracotta, sage green), typography samples (rounded sans-serif), and UI element examples.`,
       copyExamples: {
         headline: "Welcome home",
@@ -172,7 +170,6 @@ function buildBaseTemplates(snippet: string): SeedDirection[] {
         layout: "Strict vertical rhythm with ample whitespace.",
         rhythm: "Calm, deliberate pacing with subtle motion.",
       },
-      homepageMockupPrompt: `Design a minimal, refined homepage mockup for a brand described as: ${snippet.slice(0, 100)}. Use restrained colors, elegant typography, and generous whitespace.`,
       styleTilePrompt: `Create a style tile for a minimal, refined brand: ${snippet.slice(0, 100)}. Include color swatches (off-white, charcoal, single muted accent), typography samples (modern serif headings, clean sans-serif body), and UI element examples.`,
       copyExamples: {
         headline: "Less, but better",

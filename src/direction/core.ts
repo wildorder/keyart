@@ -22,6 +22,7 @@ import {
   type DirectionStatus,
   type ReferenceIntent,
   isAssetRetired,
+  versionOrdinals,
 } from "./schema.js";
 import type { DirectiveChannel, DirectivePolarity } from "../brand/schema.js";
 import { renderBrief } from "./render-brief.js";
@@ -517,11 +518,13 @@ export function createDirectionCore(
     async appendVersion(id, versionId, opts) {
       return core.update(
         id,
-        (c) => ({
-          ...c,
-          versions: [...c.versions, versionId],
-          head: versionId,
-        }),
+        (c) => {
+          const ordinals = versionOrdinals(c);
+          if (Object.hasOwn(ordinals, versionId)) throw new CommandError(`Foundation version ${versionId} already existed; its identity cannot be reused.`);
+          const nextOrdinal = Math.max(0, ...Object.values(ordinals)) + 1;
+          return { ...c, versions: [...c.versions, versionId], head: versionId,
+            versionOrdinals: { ...ordinals, [versionId]: nextOrdinal } };
+        },
         opts,
       );
     },

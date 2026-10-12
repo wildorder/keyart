@@ -17,6 +17,9 @@ import {
   appendVersionToIndex,
   retireExtractedAsset,
   setExtractedAssetSlotId,
+  reserveAssetId,
+  reserveAssetVersion,
+  readAssetLatestAttempt,
 } from "./asset-store.js";
 import { isExtractedAssetRetired } from "./schema.js";
 
@@ -29,14 +32,15 @@ function makeAssetVersion(
   overrides: Partial<AssetVersion> = {},
 ): AssetVersion {
   return {
+    formatVersion: 2,
+    status: "completed",
+    conditioning: "foundation",
+    contextSnapshot: "{}",
+    foundation: { directionId: "direction-a", versionId: "v1" },
     id,
     createdAt: "2026-07-26T00:00:00.000Z",
     description: "the yak mascot",
-    source: {
-      directionId: "direction-a",
-      versionId: "v1",
-      image: "styleTile",
-    },
+    provenance: { kind: "generated" },
     files: [],
     ...overrides,
   };
@@ -66,14 +70,16 @@ async function snapshotDir(dir: string): Promise<Record<string, string>> {
 }
 
 beforeEach(async () => {
-  directionDirA = await fs.mkdtemp(path.join(os.tmpdir(), "keyart-assetstore-a-"));
-  directionDirB = await fs.mkdtemp(path.join(os.tmpdir(), "keyart-assetstore-b-"));
+  directionDirA = path.join(await fs.mkdtemp(path.join(os.tmpdir(), "keyart-assetstore-a-")), "direction-a");
+  directionDirB = path.join(await fs.mkdtemp(path.join(os.tmpdir(), "keyart-assetstore-b-")), "direction-b");
+  await fs.mkdir(directionDirA);
+  await fs.mkdir(directionDirB);
 });
 
 afterEach(async () => {
   vi.useRealTimers();
-  await fs.rm(directionDirA, { recursive: true, force: true });
-  await fs.rm(directionDirB, { recursive: true, force: true });
+  await fs.rm(path.dirname(directionDirA), { recursive: true, force: true });
+  await fs.rm(path.dirname(directionDirB), { recursive: true, force: true });
 });
 
 describe("round-trip + head advance", () => {
@@ -89,6 +95,7 @@ describe("round-trip + head advance", () => {
     expect(await readAssetVersion(directionDirA, "yak-mascot", "v1")).toEqual(v1);
     expect((await readAssetHead(directionDirA, "yak-mascot")).id).toBe("v1");
     expect(index1).toEqual({
+      formatVersion: 2,
       id: "yak-mascot",
       name: "Yak Mascot",
       directionId: "direction-a",
@@ -458,7 +465,7 @@ describe("per-direction isolation", () => {
       directionDirB,
       "wave-pattern",
       { name: "Wave Pattern", directionId: "direction-b" },
-      makeAssetVersion("v1"),
+      makeAssetVersion("v1", { foundation: { directionId: "direction-b", versionId: "v1" } }),
     );
 
     expect(await listAssetIds(directionDirB)).toEqual(["wave-pattern"]);
@@ -529,6 +536,7 @@ describe("Zod parse rejects malformed records at the read boundary", () => {
 describe("writeAssetIndex", () => {
   it("round-trips through readAssetIndex", async () => {
     await writeAssetIndex(directionDirA, {
+      formatVersion: 2,
       id: "yak-mascot",
       name: "Yak Mascot",
       directionId: "direction-a",
@@ -536,11 +544,55 @@ describe("writeAssetIndex", () => {
       head: "v1",
     });
     expect(await readAssetIndex(directionDirA, "yak-mascot")).toEqual({
+      formatVersion: 2,
       id: "yak-mascot",
       name: "Yak Mascot",
       directionId: "direction-a",
       versions: ["v1"],
       head: "v1",
     });
+  });
+});
+
+describe("concurrent attempts and honest heads", () => {
+  it("refuses a changed reserved origin or conditioning without advancing the head", async () => {
+    const id = await reserveAssetId(directionDirA, "Mascot");
+    const { id: _, ...template } = makeAssetVersion("unused", { status: "pending" });
+    const meta = { name: "Mascot", directionId: "direction-a" };
+    const attempt = await reserveAssetVersion(directionDirA, id, meta, template);
+    await expect(appendVersionToIndex(directionDirA, id, meta, { ...attempt, conditioning: "legacy-unverified" })).rejects.toThrow(/conditioning/);
+    await expect(appendVersionToIndex(directionDirA, id, meta, { ...attempt, provenance: { kind: "extracted", source: { kind: "foundation", directionId: "direction-a", versionId: "v1", image: "styleTile" } } })).rejects.toThrow(/provenance/);
+    expect((await readAssetIndex(directionDirA, id)).head).toBe("");
+    expect(await readAssetVersion(directionDirA, id, attempt.id)).toEqual(attempt);
+  });
+
+  it("reserves distinct identities and concurrent revisions without lost updates", async () => {
+    const ids = await Promise.all(Array.from({ length: 4 }, () => reserveAssetId(directionDirA, "Mascot")));
+    expect(new Set(ids).size).toBe(4);
+    const { id: _, ...template } = makeAssetVersion("unused", { status: "pending" });
+    const attempts = await Promise.all(Array.from({ length: 6 }, () => reserveAssetVersion(directionDirA, ids[0], { name: "Mascot", directionId: "direction-a" }, template)));
+    expect(new Set(attempts.map((a) => a.id)).size).toBe(6);
+    const pending = await readAssetIndex(directionDirA, ids[0]);
+    expect(pending.versions).toHaveLength(6);
+    expect(pending.head).toBe("");
+    await expect(readAssetHead(directionDirA, ids[0])).rejects.toThrow(/no completed/);
+    expect((await readAssetLatestAttempt(directionDirA, ids[0])).status).toBe("pending");
+    await fs.writeFile(path.join(directionDirA, "extracted-assets", ids[0], "versions", attempts[0].id, "asset.png"), "completed-image");
+    await appendVersionToIndex(directionDirA, ids[0], { name: "Mascot", directionId: "direction-a" }, { ...attempts[0], status: "completed", files: ["asset.png"] });
+    await appendVersionToIndex(directionDirA, ids[0], { name: "Mascot", directionId: "direction-a" }, { ...attempts[1], status: "failed" });
+    const settled = await readAssetIndex(directionDirA, ids[0]);
+    expect(settled.head).toBe(attempts[0].id);
+    expect(settled.versions).toHaveLength(6);
+    expect((await readAssetVersion(directionDirA, ids[0], attempts[2].id)).status).toBe("pending");
+  });
+
+  it("refuses unsupported existing records before changing their bytes", async () => {
+    const dir = path.join(directionDirA, "extracted-assets", "old");
+    await fs.mkdir(dir, { recursive: true });
+    const old = JSON.stringify({ id: "old", name: "Old", directionId: "direction-a", versions: ["v1"], head: "v1" });
+    await fs.writeFile(path.join(dir, "asset.json"), old);
+    await expect(appendVersionToIndex(directionDirA, "old", { name: "Old", directionId: "direction-a" }, makeAssetVersion("v2"))).rejects.toThrow(/convert/);
+    expect(await fs.readFile(path.join(dir, "asset.json"), "utf8")).toBe(old);
+    expect(await fs.readdir(dir)).toEqual(["asset.json"]);
   });
 });

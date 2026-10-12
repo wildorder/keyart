@@ -1,14 +1,15 @@
 import path from "node:path";
 import { loadConfig, directionsRoot } from "../config.js";
 import { ensureDir, writeTextFile } from "../fs.js";
-import { hasApiKey, generateImage, detectContradictionsLLM } from "../openai.js";
+import { hasApiKey, detectContradictionsLLM } from "../openai.js";
 import {
   detectContradictions,
   type ContradictionReport,
   type ContradictionInput,
   type ContradictionDeps,
 } from "../brand/conflict-guard.js";
-import { resolveDirection, readHead } from "../direction/store.js";
+import { resolveDirection } from "../direction/store.js";
+import { resolveFoundation, assertFoundationPath } from "../direction/foundation.js";
 import { assertDirectionHasVersions } from "../direction/draft-guard.js";
 import { createDirectionCore } from "../direction/core.js";
 import { createBrandCore } from "../brand/core.js";
@@ -21,8 +22,7 @@ import {
 import {
   renderArtDirectionPrecedence,
 } from "../explore/compose-art-direction.js";
-import { cloneTokens } from "../explore/token-intent.js";
-import { composeEvocativeBoardPrompt } from "../explore/evocative-prompt.js";
+import { cloneTokens, deriveLocksFromContext } from "../explore/token-intent.js";
 import {
   splitByIntent,
   type RunReference,
@@ -58,7 +58,7 @@ export interface RegenerateVisualsResult {
 /**
  * The single iterate path: **feedback → regenerate appends a new
  * `DirectionVersion`**. Addressed by `<directionId>`, this reads the direction's
- * **head** version, re-renders BOTH graphics (soft locked-color guidance + kept
+ * **selected** version, renders a new authoritative tile (soft locked-color guidance + kept
  * `inspire` crops + discard negatives), re-extracts the UNLOCKED tokens off the
  * new tile (locked roles held verbatim — lock-and-rotate, SC-06), and **appends**
  * the result as the next version — the head advances and prior versions are never
@@ -80,10 +80,16 @@ export interface RegenerateVisualsResult {
  * collects skip reasons, still appends a cloned-token version + re-renders the
  * deterministic board, flags dry-run, and never throws (SC-11).
  */
-export async function runRegenerateVisuals(opts: {
+export async function runReviseDirection(opts: {
   cwd: string;
   directionId: string;
-  /** One-shot art direction appended to both image prompts for this pass only. */
+  /** Explicit source foundation; omitted selects the current head once. */
+  versionId?: string;
+  /** One-shot crop/image reference, never added to the direction's moodboard. */
+  referencePath?: string;
+  /** Internal validated edit seam; all edits still use this generation/append path. */
+  editedContent?: DirectionContent;
+  /** One-shot art direction appended to the tile prompt for this pass only. */
   tweak?: string;
   /** Roles whose CURRENT head-version value is held verbatim across this
    * regenerate (lock-and-rotate). Unlocked roles are re-extracted from the tile. */
@@ -117,7 +123,10 @@ export async function runRegenerateVisuals(opts: {
 
   // Read the HEAD version — readHead throws a CommandError naming the direction
   // when absent. Prior versions are never read/written here (append-only).
-  const head = await readHead(root, opts.directionId);
+  const foundation = await resolveFoundation({ cwd, config, directionId: opts.directionId,
+    versionId: opts.versionId ?? resolvedDirection.record.head! });
+  const head = foundation.content;
+  const sourceContent = opts.editedContent ?? head;
 
   const core = createDirectionCore(cwd, config);
 
@@ -135,6 +144,11 @@ export async function runRegenerateVisuals(opts: {
   }));
   const { inspire } = splitByIntent(resolved);
   const refAbs = inspire.map((r) => r.path);
+  if (opts.referencePath) {
+    const reference = path.resolve(cwd, opts.referencePath);
+    await assertFoundationPath(cwd, reference);
+    refAbs.unshift(reference);
+  }
 
   // This direction's memory → assembled context (single precedence chokepoint).
   // Words only — a discard thumbnail is NEVER a reference image.
@@ -144,11 +158,6 @@ export async function runRegenerateVisuals(opts: {
   // value + explicit locked hexes. The plain hexes feed the SOFT image guidance;
   // the role-aware `PaletteLock[]` are honored verbatim as extraction locks after
   // the tile renders (SC-06). Empty when nothing is locked.
-  const lockSet = buildLockedColorSet(
-    head,
-    opts.lockedRoles ?? [],
-    opts.lockedColors ?? [],
-  );
 
   // One-shot art direction for THIS pass only (never persisted). The one-shot
   // `tweak` and the GENERIC `feedbackNote` are the same kind of this-pass steer,
@@ -177,6 +186,9 @@ export async function runRegenerateVisuals(opts: {
     references,
   });
   const contextBlock = renderContextBlock(assembled);
+  const lockSet = buildLockedColorSet(sourceContent, opts.lockedRoles ?? [], [
+    ...deriveLocksFromContext(contextBlock), ...(opts.lockedColors ?? []),
+  ]);
 
   // Advisory detection pass — never edits the compiled block. Key-gates the
   // semantic adapter: no key ⇒ deps undefined ⇒ floor only.
@@ -206,9 +218,9 @@ export async function runRegenerateVisuals(opts: {
   // captureCommandOutput (MCP stdout channel), so console.warn is safe.
   for (const w of contradictionReport.warnings) console.warn(w.message);
 
-  const snapshotContext = artDirection
+  const snapshotContext = `## Source foundation\n\n${opts.directionId}@${head.id}\n\n` + (artDirection
     ? `## One-shot art direction (this pass only)\n\n${artDirection}\n\n${contextBlock}`
-    : contextBlock;
+    : contextBlock);
 
   // Build the NEW version from a CLONE of the head's content — name/summary/
   // positioning/visualStyle/prompts/copy/rules/tokens carried verbatim
@@ -224,10 +236,11 @@ export async function runRegenerateVisuals(opts: {
   } = head;
   const version: DirectionVersion = {
     ...content,
-    tokens: head.tokens ? cloneTokens(head.tokens) : undefined,
+    ...opts.editedContent,
+    tokens: sourceContent.tokens ? cloneTokens(sourceContent.tokens) : undefined,
     id: "", // the writer mints a collision-safe versionId
     createdAt: new Date().toISOString(),
-    producedBy: describeProvenance(keep, artDirection),
+    producedBy: opts.editedContent ? `manual edit from ${head.id}` : describeProvenance(keep, artDirection),
     briefSnapshot: briefText,
     contextSnapshot: snapshotContext,
   };
@@ -249,7 +262,7 @@ export async function runRegenerateVisuals(opts: {
   };
 
   // Append the NEW version via the WS-01 writer — the SINGLE place token
-  // extraction lives. It generates the tile + homepage, re-extracts the UNLOCKED
+  // extraction lives. It generates the tile, re-extracts the UNLOCKED
   // tokens (holding the role-aware locks verbatim — SC-06), writes prompts +
   // snapshots, and advances the index head. The one-shot art direction rides on
   // `oneShotArtDirection` so it steers THIS pass without being persisted into
@@ -276,36 +289,16 @@ export async function runRegenerateVisuals(opts: {
     versionId,
   );
 
-  // Evocative moodboard/style-board.png — best-effort, reference-capable, distinct
-  // from the deterministic board below. Gated exactly like the writer's images so
-  // a keyless / model-less run simply omits it (never throws).
-  if (hasApiKey() && config.models.image) {
-    const boardPng = path.join(versionDir, "style-board.png");
-    const boardRes = await generateImage({
-      model: config.models.image,
-      prompt: composeEvocativeBoardPrompt(
-        versionWithSnapshot,
-        assembled,
-        artDirection || undefined,
-        lockSet.hexes,
-      ),
-      outPath: boardPng,
-      referenceImagePaths: refAbs,
-    });
-    if (boardRes.written) filesWritten.push(rel(boardPng));
-    else if (boardRes.skippedReason) imageSkips.push(boardRes.skippedReason);
-  }
-
   // Deterministic style board (SVG + markdown) LAST — a model-free projection of
   // the NEW version's (re-extracted or cloned) tokens. Lands even keyless.
   let boardWritten = false;
-  if (version.tokens) {
+  if (versionWithSnapshot.tokens) {
     await ensureDir(versionDir);
     const boardMdPath = path.join(versionDir, "style-board.md");
-    await writeTextFile(boardMdPath, renderStyleBoardMarkdown(version));
+    await writeTextFile(boardMdPath, renderStyleBoardMarkdown(versionWithSnapshot));
     filesWritten.push(rel(boardMdPath));
     const boardSvgPath = path.join(versionDir, "style-board.svg");
-    await writeTextFile(boardSvgPath, renderStyleBoardSvg(version));
+    await writeTextFile(boardSvgPath, renderStyleBoardSvg(versionWithSnapshot));
     filesWritten.push(rel(boardSvgPath));
     boardWritten = true;
   }
@@ -335,6 +328,9 @@ export async function runRegenerateVisuals(opts: {
     contradictionReport,
   };
 }
+
+/** Existing public spelling delegates to the same foundation-only revision path. */
+export const runRegenerateVisuals = runReviseDirection;
 
 /** A concise provenance string for the new version from the regenerate gesture. */
 function describeProvenance(keep: string[], artDirection: string): string {

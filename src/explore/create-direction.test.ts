@@ -298,7 +298,7 @@ describe("createAuthoredDirection — collision-safe directionId (SC-02)", () =>
 // ── 7. Prompts composed when omitted (SC-05) ─────────────────────────────────
 
 describe("createAuthoredDirection — deterministic prompt composition (SC-05)", () => {
-  it("omitting both prompts yields non-empty files referencing the authored name", async () => {
+  it("omitting the tile prompt yields a non-empty file referencing the authored name", async () => {
     await createSeedDirection(tmpDir);
     const result = await createAuthoredDirection({
       cwd: tmpDir,
@@ -311,20 +311,16 @@ describe("createAuthoredDirection — deterministic prompt composition (SC-05)",
       directionsDir, result.directionId, "versions", result.versionId,
     );
     const styleMd = await fs.readFile(path.join(versionDir, "style-tile-prompt.md"), "utf-8");
-    const homeMd = await fs.readFile(path.join(versionDir, "homepage-mockup-prompt.md"), "utf-8");
 
     expect(styleMd.trim().length).toBeGreaterThan(0);
-    expect(homeMd.trim().length).toBeGreaterThan(0);
     // Deterministic composition embeds the authored name.
     expect(styleMd).toContain(FULL_CONTENT.name);
-    expect(homeMd).toContain(FULL_CONTENT.name);
   });
 
-  it("explicit prompts are stored verbatim (modulo writer decoration)", async () => {
+  it("an explicit tile prompt is stored verbatim (modulo writer decoration)", async () => {
     await createSeedDirection(tmpDir);
     const EXPLICIT_STYLE = "My custom style tile prompt for testing.";
-    const EXPLICIT_HOME = "My custom homepage mockup prompt for testing.";
-    const content = { ...FULL_CONTENT, styleTilePrompt: EXPLICIT_STYLE, homepageMockupPrompt: EXPLICIT_HOME };
+    const content = { ...FULL_CONTENT, styleTilePrompt: EXPLICIT_STYLE };
 
     const result = await createAuthoredDirection({ cwd: tmpDir, directionId: "seed", content });
 
@@ -333,12 +329,10 @@ describe("createAuthoredDirection — deterministic prompt composition (SC-05)",
       directionsDir, result.directionId, "versions", result.versionId,
     );
     const styleMd = await fs.readFile(path.join(versionDir, "style-tile-prompt.md"), "utf-8");
-    const homeMd = await fs.readFile(path.join(versionDir, "homepage-mockup-prompt.md"), "utf-8");
 
     // The explicit prompt text must appear in the written file (the writer appends
     // a CONTENT LOCK + optional negatives after the base prose, so the base is present).
     expect(styleMd).toContain(EXPLICIT_STYLE);
-    expect(homeMd).toContain(EXPLICIT_HOME);
   });
 });
 

@@ -1,7 +1,8 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import YAML from "yaml";
-import { readTextFile, writeTextFile, pathExists } from "../fs.js";
+import { readTextFile, pathExists } from "../fs.js";
+import { withFileLock, atomicWriteText } from "./file-lock.js";
 import { CommandError } from "../errors.js";
 import type {
   Versioned,
@@ -64,23 +65,25 @@ async function writeDoc<T extends Versioned>(
   parse: Parse<T>,
   opts: WriteOptions | undefined,
 ): Promise<T> {
-  const current = await readDoc(filePath, parse);
-  const currentVersion = current?.version ?? 0;
+  return withFileLock(filePath, async () => {
+    const current = await readDoc(filePath, parse);
+    const currentVersion = current?.version ?? 0;
 
-  if (!opts?.force) {
-    const expected = opts?.expectedVersion ?? 0;
-    if (expected !== currentVersion) {
-      throw new VersionConflictError(filePath, expected, currentVersion);
+    if (!opts?.force) {
+      const expected = opts?.expectedVersion ?? 0;
+      if (expected !== currentVersion) {
+        throw new VersionConflictError(filePath, expected, currentVersion);
+      }
     }
-  }
 
-  const persisted: T = { ...doc, version: currentVersion + 1 };
-  let serialized = YAML.stringify(persisted);
-  if (!serialized.endsWith("\n")) {
-    serialized += "\n";
-  }
-  await writeTextFile(filePath, serialized);
-  return persisted;
+    const persisted: T = { ...doc, version: currentVersion + 1 };
+    let serialized = YAML.stringify(persisted);
+    if (!serialized.endsWith("\n")) {
+      serialized += "\n";
+    }
+    await atomicWriteText(filePath, serialized);
+    return persisted;
+  });
 }
 
 export function createFileSingleDocStore<T extends Versioned>(opts: {

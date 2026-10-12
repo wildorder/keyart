@@ -5,6 +5,7 @@ import os from "node:os";
 import { loadDashboardData } from "./api.js";
 import { loadConfig, globalBrandPath, directionsRoot } from "../config.js";
 import { createDirectionCore } from "../direction/core.js";
+import { runDeleteDirectionVersion } from "../direction/delete-version.js";
 import { createBrandCore } from "../brand/core.js";
 import {
   memoryEntryAffordances,
@@ -46,7 +47,6 @@ function makeVersion(id: string, over: Partial<DirectionVersion> = {}): Directio
     summary: "a summary",
     positioning: "premium",
     character: { mood: "bold" },
-    homepageMockupPrompt: "hp",
     styleTilePrompt: "st",
     copyExamples: { headline: "H", subheadline: "S", cta: "C" },
     usage: { rules: ["r1", "r2", "r3"], antiRules: ["a1", "a2"] },
@@ -100,6 +100,16 @@ afterEach(async () => {
 });
 
 describe("loadDashboardData", () => {
+  it("keeps ordinal labels stable after deletion and later append", async () => {
+    const config = buildTestConfig(tmpDir);
+    vi.mocked(loadConfig).mockResolvedValue(config);
+    await createDirectionCore(tmpDir, config).create({ id: "stable", name: "Stable" });
+    await writeVersions(config, "stable", [makeVersion("first"), makeVersion("second"), makeVersion("third")]);
+    await runDeleteDirectionVersion({ cwd: tmpDir, directionId: "stable", versionId: "second" });
+    await writeVersions(config, "stable", [makeVersion("fourth")]);
+    const data = await loadDashboardData(tmpDir);
+    expect(data.directions.find((d) => d.id === "stable")!.versions.map((v) => [v.versionId, v.ordinal])).toEqual([["first", 1], ["third", 3], ["fourth", 4]]);
+  });
   it("returns empty sections and no throw on empty brand dir", async () => {
     const data = await loadDashboardData(tmpDir);
 

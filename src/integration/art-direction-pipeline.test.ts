@@ -142,13 +142,9 @@ describe("art-direction pipeline (end-to-end, network-free / key-free)", () => {
         path.join(exploreVerDir, "style-tile-prompt.md"),
         "utf-8",
       );
-      const exploreHomepage = await fs.readFile(
-        path.join(exploreVerDir, "homepage-mockup-prompt.md"),
-        "utf-8",
-      );
 
       // Both persisted prompts carry the decision as AVOID and the rule as MUST.
-      for (const prompt of [exploreStyleTile, exploreHomepage]) {
+      for (const prompt of [exploreStyleTile]) {
         expect(prompt).toContain("MUST (non-negotiable — always obey):");
         expect(prompt).toContain("Never use stock-photo people");
         expect(prompt).toContain("AVOID (do not use):");
@@ -158,7 +154,6 @@ describe("art-direction pipeline (end-to-end, network-free / key-free)", () => {
       // Both explore prompts share an identical directive block (SC-02: one compiler).
       const exploreArtBlock = extractArtBlock(exploreStyleTile);
       expect(exploreArtBlock).not.toBe(""); // block is non-empty
-      expect(extractArtBlock(exploreHomepage)).toBe(exploreArtBlock);
 
       // ── REGENERATE (live key + generateImage spy to capture board prompt) ───
       // Memory is direction-local after the aggregate-root move. Record the
@@ -182,34 +177,18 @@ describe("art-direction pipeline (end-to-end, network-free / key-free)", () => {
         path.join(regenVerDir, "style-tile-prompt.md"),
         "utf-8",
       );
-      const regenHomepage = await fs.readFile(
-        path.join(regenVerDir, "homepage-mockup-prompt.md"),
-        "utf-8",
-      );
 
-      for (const prompt of [regenStyleTile, regenHomepage]) {
+      for (const prompt of [regenStyleTile]) {
         expect(prompt).toContain("MUST (non-negotiable — always obey):");
         expect(prompt).toContain("Never use stock-photo people");
         expect(prompt).toContain("AVOID (do not use):");
         expect(prompt).toContain("never use a fist-in-the-air icon");
       }
 
-      // Board prompt (evocative board) — captured via the generateImage spy.
-      // composeEvocativeBoardPrompt opens with "A cohesive moodboard".
-      const boardCall = vi.mocked(generateImage).mock.calls.find(([args]) =>
-        args.prompt.includes("cohesive moodboard"),
-      );
-      expect(boardCall).toBeDefined();
-      const boardPrompt = boardCall![0].prompt;
-      expect(boardPrompt).toContain("MUST (non-negotiable — always obey):");
-      expect(boardPrompt).toContain("Never use stock-photo people");
-      expect(boardPrompt).toContain("AVOID (do not use):");
-      expect(boardPrompt).toContain("never use a fist-in-the-air icon");
-
-      // All three regenerate prompts share the same directive block (SC-02).
-      const regenArtBlock = extractArtBlock(regenStyleTile);
-      expect(extractArtBlock(regenHomepage)).toBe(regenArtBlock);
-      expect(extractArtBlock(boardPrompt)).toBe(regenArtBlock);
+      // A direction revision makes exactly one foundation tile, with no hidden Board.
+      expect(vi.mocked(generateImage)).toHaveBeenCalledTimes(1);
+      expect(extractArtBlock(vi.mocked(generateImage).mock.calls[0][0].prompt))
+        .toBe(extractArtBlock(regenStyleTile));
 
       // Per-direction isolation: witness must have no memory from alpha's operations.
       expect(await core.memoryEntries("witness")).toHaveLength(0);
@@ -281,7 +260,7 @@ describe("art-direction pipeline (end-to-end, network-free / key-free)", () => {
     const result = await runExplore({ cwd: tmpDir, directionId: "alpha" });
 
     const verDir = await headVersionDir(result.directionIds[0]);
-    for (const f of ["style-tile-prompt.md", "homepage-mockup-prompt.md"]) {
+    for (const f of ["style-tile-prompt.md"]) {
       const prompt = await fs.readFile(path.join(verDir, f), "utf-8");
       // Copy-only body never reaches an image prompt.
       expect(prompt).not.toContain(COPY_BODY);
@@ -456,7 +435,7 @@ describe("art-direction pipeline (end-to-end, network-free / key-free)", () => {
       vi.mocked(hasApiKey).mockReturnValue(false); // back to dry-run for the probe explore
       const probeResult = await runExplore({ cwd: tmpDir, directionId: "alpha" });
       const probeVerDir = await headVersionDir(probeResult.directionIds[0]);
-      for (const f of ["style-tile-prompt.md", "homepage-mockup-prompt.md"]) {
+      for (const f of ["style-tile-prompt.md"]) {
         const prompt = await fs.readFile(path.join(probeVerDir, f), "utf-8");
         expect(prompt).not.toContain("use a warm terracotta palette"); // retired — absent
         expect(prompt).toContain("use a cool slate palette");          // surviving — present
@@ -491,7 +470,7 @@ describe("art-direction pipeline (end-to-end, network-free / key-free)", () => {
       expect(result.dryRun).toBe(true);
 
       const verDir = await headVersionDir(result.directionIds[0]);
-      for (const f of ["style-tile-prompt.md", "homepage-mockup-prompt.md"]) {
+      for (const f of ["style-tile-prompt.md"]) {
         const prompt = await fs.readFile(path.join(verDir, f), "utf-8");
         // No-directive path: none of the art-direction headers should appear
         // (composeArtDirection returns "" → decorate emits no art tail).

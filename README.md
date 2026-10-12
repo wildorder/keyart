@@ -4,7 +4,7 @@ A local creative director for AI-built prototypes — turn a rough brief into vi
 
 Your AI-built prototype looks like every other AI-built prototype. Keyart gives it a specific visual identity — and hands your coding agent the rules to keep it.
 
-- **Tokens come from the picture, not a guess.** The exact colors and fonts are read back off the actual generated image, so your CSS and coding-agent rules can never drift from what's on the page.
+- **Tokens come from the picture, not a guess.** The tile’s printed palette and type names are read back into structured tokens. CSS and guides project those tokens exactly; raster colors and mapped typography remain approximate.
 - **Feedback compounds.** What you approve, discard, or lock is remembered per exploration and shapes every future regeneration.
 - **Built for agents too.** A CLI, an MCP server for Cursor/Claude Code, and a deterministic no-key dry-run mode mean humans, agents, and CI can all drive the same loop.
 
@@ -26,7 +26,7 @@ npm link
 
 ## Quickstart
 
-Three nouns cover the whole workflow. A **direction** is one self-contained brand exploration — its **brief** describes what you're building, and each direction grows a history of **versions** as you iterate (a direction with a brief but no versions yet is a *draft*). `approve` picks one direction and codifies it into the CSS, guides, and agent rules your project consumes. The **studio** (`keyart serve`) is a local web app for browsing and editing all of it.
+A direction owns an immutable brand foundation, named Boards that explore its applications, and usable assets. A **direction** is one self-contained brand exploration — its **brief** describes what you're building, and each direction grows a history of **versions** as you iterate (a direction with a brief but no versions yet is a *draft*). `approve` picks one direction and codifies it into the CSS, guides, and agent rules your project consumes. The **studio** (`keyart serve`) is a local web app for browsing and editing all of it.
 
 ```bash
 npx keyart init                    # scaffold config + brand/ folder
@@ -47,16 +47,30 @@ The first `approve` is a starting point, not the end state. What you tell Keyart
 
 ```bash
 npx keyart direction feedback <directionId> --body "less neon, calmer surfaces" # record a reaction (yours or a teammate's)
-npx keyart regenerate <directionId>    # new version of that direction, shaped by the accumulated feedback
+npx keyart direction revise <directionId>    # new version of that direction, shaped by the accumulated feedback
 npx keyart approve <directionId>       # re-approve — every guide, CSS var, and agent rule re-codifies
 npx keyart audit <url>                 # vision-check the built page against the approved style
 ```
 
-Locked colors survive regeneration verbatim, discarded crops become negative guidance, and audit findings can be fed back in as more feedback — see [`docs/cli-reference.md`](docs/cli-reference.md) for the full loop (`direction feedback`, `regenerate`, memory lifecycle, fork).
+Revising a direction makes one new foundation tile and never updates Boards, assets, or approval automatically. Locked colors survive extraction verbatim, discarded crops become negative guidance, and audit findings can be fed back in as more feedback — see [`docs/cli-reference.md`](docs/cli-reference.md) for the full loop (`direction feedback`, `regenerate`, memory lifecycle, fork).
+
+## Boards and usable assets
+
+Choose a saved foundation version explicitly when creating a Board or asset:
+
+```bash
+npx keyart board create --direction <id> --version <versionId> --name "Launch campaign" --describe "Instagram announcement"
+npx keyart board revise <boardId> --direction <id> --tweak "More room for the date"
+npx keyart board update --direction <id> --version <newVersionId>
+npx keyart asset generate --direction <id> --version <versionId> --name "Campaign artwork" --describe "A square editorial illustration"
+npx keyart asset extract --direction <id> --board <boardId> --revision <revisionId> --describe "the mascot"
+```
+
+Boards retain their own local instructions and revision histories. Revise Board defaults to the latest direction foundation; its source revision can independently come from history. Update Boards batches that same operation, reports partial results, and supports `--resume <batchId>` without regenerating recorded successes. Assets and approval are excluded. Direct assets support appropriate backgrounds; extraction isolates an element. Neither Boards nor assets supplies brand tokens.
 
 ## Example output
 
-Real output from one recorded end-to-end run against a fictional example brand, "Mossling" — see [`docs/examples/starter-brand/`](docs/examples/starter-brand/) for the full set, including `brand.css`, Cursor rules, the style guides, and the verbatim run transcript.
+Historical output from one recorded end-to-end run (before named Boards replaced automatic homepage images) against a fictional example brand, "Mossling" — see [`docs/examples/starter-brand/`](docs/examples/starter-brand/) for the full set, including `brand.css`, Cursor rules, the style guides, and the verbatim run transcript.
 
 **Generated** — the image model's own output, rendered freely from the brief:
 
@@ -79,8 +93,8 @@ Keyart itself is free (Apache-2.0) and runs entirely on your machine: no account
 | Command | Text | Vision | Image | Keyless? |
 |---|:---:|:---:|:---:|---|
 | `explore` | ✓ | ✓ | ✓ | Yes — dry-run writes placeholder directions instead |
-| `regenerate` | – | ✓ | ✓ | Yes — dry-run appends a placeholder version instead |
-| `asset extract` / `asset regenerate` | – | – | ✓ | Yes — dry-run records the prompt with no PNG |
+| `direction revise` / `regenerate` | advisory | ✓ | ✓ | Yes — dry-run appends a placeholder version instead |
+| `board create/revise/update`, `asset generate/extract/revise` | – | – | ✓ | Yes — dry-run records the prompt with no PNG |
 | `surface fill` | – | – | ✓ | Yes — dry-run records an honest pending fill, no PNG |
 | `surface scan` (vision refinement tier only) | – | ✓ | – | Yes — the scan itself is always keyless; refinement is skipped with no key |
 | `audit` | – | ✓ | – | Yes — dry-run writes a placeholder critique |
@@ -88,7 +102,7 @@ Keyart itself is free (Apache-2.0) and runs entirely on your machine: no account
 | `direction brief map`, `direction reconcile` (semantic check) | ✓ | – | – | Yes — both degrade to an empty/floor-only result with no key |
 | everything else (`approve`, `asset pack`, `surface bind/show/set/patch/request/retire`, `init`, `doctor`, the `direction` read/write verbs incl. `new`/`fork`/`create`, `rule`, `promote`, the studio's palette reroll) | – | – | – | **Always** — these never call a model, key or no key |
 
-**Image generation spends real money, and `explore --count N` is more than N image generations.** Each direction gets its own style tile *and* homepage mockup — that's **2×N image-model calls** for `explore --count N` (e.g. `--count 3` is 6 image generations), plus one text/vision call to draft the N directions' content and one further vision call per direction to read the design tokens back off its generated tile. `regenerate` makes 3 image-model calls per run (style tile, homepage mockup, and the evocative style board), plus one vision call to re-read the tokens.
+**Image calls are explicit.** Each generated foundation uses one style-tile image call plus a vision transcription; divergent `explore --describe/--from --count N` generates N tiles, alongside brief/content text calls. `direction revise` (also spelled `regenerate`) generates one tile. Each Board revision and each asset generation/extraction/revision requests one image; Update Boards requests one per unfinished Board. A missing key or foundation image produces an inspectable pending attempt instead. Optional reference analysis and contradiction checks may add text/vision calls.
 
 ### With and without a key
 
@@ -97,15 +111,19 @@ The keyless path is not a lesser version of the product — it's a **different a
 | Capability | No key | With `OPENAI_API_KEY` |
 |---|---|---|
 | Scaffold, briefs, directions (new/fork/create), memory, global rules, `doctor` | Everything | Everything |
-| `explore` / `regenerate` | Deterministic **placeholder** directions — no images, placeholder tokens. For CI/agents and dry runs, not real branding | Real style tiles, mockups, and boards; tokens **extracted from the generated tile** |
+| `explore` / `regenerate` | Deterministic **placeholder** directions — no images, placeholder tokens. For CI/agents and dry runs, not real branding | A style tile per foundation; tokens **extracted from that tile** |
 | `direction create` (hand-authored direction) | Full — your content; tokens engine-seeded deterministically from the brief's color intent | Same, and a keyed `regenerate` upgrades the tokens to extraction-backed |
 | `approve` → `brand.css`, guides, Cursor rules, asset pack | Full — a deterministic projection of whatever tokens exist; never calls a model | Identical (still no model call) |
 | Studio (`keyart serve`) | Full browsing + authoring; the chat rail shows an unavailable state | Everything, plus the chat rail |
 | `audit <url>` | Real Playwright screenshot, **placeholder** critique | Screenshot + a vision critique against your approved style |
 | `surface scan` | The full deterministic floor scan (DOM walk, candidate crops, anonymous ids) | Floor scan + vision refinement (meaningful ids and descriptions) |
-| `asset extract` / `surface fill` | The prompt is recorded honestly; no image is generated | Generated PNGs |
+| Boards, `asset generate/extract/revise`, `surface fill` | The prompt is recorded honestly; no image is generated | Generated PNGs |
 
 Nothing crashes keyless and nothing is fabricated — placeholder output is always labeled as such. See [Dry-Run Mode](docs/cli-reference.md#dry-run-mode) for the exact per-command behavior.
+
+### Upgrading saved imagery
+
+The Boards/assets format in 0.2.0 is a breaking change. Existing imagery is preserved on disk but unsupported records are rejected without conversion. Follow the [one-time migration checklist](https://github.com/wildorder/keyart/blob/main/docs/migration-0.2.md) in the consuming project before upgrading; imported imagery must be labeled `legacy-unverified`, never claimed to have been foundation-conditioned. There is no automatic migration command.
 
 ### Upgrading from the concept era
 

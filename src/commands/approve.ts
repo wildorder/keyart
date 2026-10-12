@@ -14,6 +14,8 @@ import { CommandError } from "../errors.js";
 import { directionsRoot } from "../config.js";
 import { resolveDirection, readHead, readVersion } from "../direction/store.js";
 import { assertDirectionHasVersions } from "../direction/draft-guard.js";
+import { assertFoundationId, resolveFoundation } from "../direction/foundation.js";
+import { withFoundationMutationLock } from "../direction/delete-version.js";
 import { createDirectionCore } from "../direction/core.js";
 import { createBrandCore } from "../brand/core.js";
 import {
@@ -30,7 +32,7 @@ import {
   renderStyleBoardMarkdown,
   renderStyleBoardSvg,
 } from "../approve/render-style-board.js";
-import { runAssetPack } from "../asset/pack.js";
+import { preflightAssetPack, runAssetPack } from "../asset/pack.js";
 import { createSurfaceCore } from "../surface/store.js";
 import { runSurfaceBind, type GapRow } from "../surface/bind.js";
 import { slotById } from "../surface/schema.js";
@@ -93,12 +95,24 @@ export async function runApprove(opts: {
   force?: boolean;
 }): Promise<ApproveResult> {
   const config = await loadConfig(opts.cwd);
+  return withFoundationMutationLock(opts.cwd, config, () => runApproveLocked(opts));
+}
+
+async function runApproveLocked(opts: {
+  cwd: string;
+  directionId: string;
+  versionId?: string;
+  force?: boolean;
+}): Promise<ApproveResult> {
+  const config = await loadConfig(opts.cwd);
   const cwd = path.resolve(opts.cwd);
   const brandRoot = path.resolve(opts.cwd, config.brand.root);
   const filesWritten: string[] = [];
   const rel = (abs: string): string =>
     path.relative(cwd, abs).split(path.sep).join("/");
   const root = directionsRoot(opts.cwd, config);
+  assertFoundationId(opts.directionId, "direction");
+  if (opts.versionId !== undefined) assertFoundationId(opts.versionId, "version");
 
   // Resolve the direction — an unknown id throws CommandError listing available ids.
   const resolvedDirection = await resolveDirection(opts.cwd, config, opts.directionId);
@@ -126,12 +140,11 @@ export async function runApprove(opts: {
     versionId = direction.id;
   }
 
-  const versionDir = path.join(
-    root,
-    opts.directionId,
-    "versions",
-    versionId,
-  );
+  const foundation = await resolveFoundation({ cwd, config, directionId: opts.directionId, versionId });
+  direction = foundation.content;
+  const versionDir = foundation.versionDir;
+  // Refuse unsupported asset records before changing approval or its outputs.
+  await preflightAssetPack(resolvedDirection.dir);
 
   // Single approvedAt reused by the approved-file provenance + the codify stamp.
   const approvedAt = new Date().toISOString();
@@ -153,7 +166,7 @@ export async function runApprove(opts: {
   console.log(`  ✓ brand/approved/current-direction.json`);
 
   // Step 2: Copy prompts and images from the pinned version folder.
-  const filesToCopy = ["style-tile-prompt.md", "homepage-mockup-prompt.md"];
+  const filesToCopy = ["style-tile-prompt.md", "style-tile.png"];
   for (const file of filesToCopy) {
     const src = path.join(versionDir, file);
     if (await pathExists(src)) {
@@ -161,22 +174,11 @@ export async function runApprove(opts: {
       await copyFileSafe(src, dest);
       filesWritten.push(rel(dest));
       console.log(`  ✓ brand/approved/${file}`);
+    } else {
+      // These are managed projections, not historical originals. A missing
+      // selected artifact must never keep advertising the previous approval.
+      await fs.rm(path.join(approvedDir, file), { force: true });
     }
-  }
-
-  // Copy any .png files from the version folder.
-  try {
-    const entries = await fs.readdir(versionDir);
-    for (const entry of entries) {
-      if (entry.endsWith(".png")) {
-        const dest = path.join(approvedDir, entry);
-        await copyFileSafe(path.join(versionDir, entry), dest);
-        filesWritten.push(rel(dest));
-        console.log(`  ✓ brand/approved/${entry}`);
-      }
-    }
-  } catch {
-    // No directory or no files — fine
   }
 
   // Step 3: Set the global approved pointer (the rebrand switch). `setPointer`

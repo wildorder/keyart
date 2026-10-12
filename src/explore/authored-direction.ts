@@ -20,7 +20,6 @@ const VALID_FIELDS = [
   "usage",
   "copyExamples",
   "styleTilePrompt",
-  "homepageMockupPrompt",
 ];
 
 function cleanList(list: string[]): string[] {
@@ -55,7 +54,6 @@ const AuthoredDirectionContentSchema = z.object({
   usage: AuthoredUsageSchema,
   copyExamples: AuthoredCopyExamplesSchema,
   styleTilePrompt: z.string().optional(),
-  homepageMockupPrompt: z.string().optional(),
 });
 
 /**

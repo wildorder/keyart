@@ -208,6 +208,7 @@ describe("asset-extraction pipeline (end-to-end, network-free / key-free)", () =
     const result = await runAssetExtract({
       cwd: tmpDir,
       directionId: dirA,
+      versionId: (await readHead(directionsDirOf(tmpDir, dirA), dirA)).id,
       describe: "the yak mascot",
       name: "Yak Mascot",
     });
@@ -219,15 +220,15 @@ describe("asset-extraction pipeline (end-to-end, network-free / key-free)", () =
     const index = await readAssetIndex(directionDir, result.assetId);
     expect(index.directionId).toBe(dirA);
     expect(index.versions).toEqual([result.versionId]);
-    expect(index.head).toBe(result.versionId);
+    expect(index.head).toBe("");
 
     const version = await readAssetVersion(directionDir, result.assetId, result.versionId);
     expect(version.description).toBe("the yak mascot");
     expect(version.dryRun).toBe(true);
-    expect(version.source.directionId).toBe(dirA);
-    expect(version.source.image).toBe("styleTile");
+    expect(version.foundation.directionId).toBe(dirA);
+    expect(version.provenance).toMatchObject({ kind: "extracted", source: { kind: "foundation", image: "styleTile" } });
     const dirAHead = await readHead(directionsDirOf(tmpDir, "alpha"), dirA);
-    expect(version.source.versionId).toBe(dirAHead.id);
+    expect(version.foundation.versionId).toBe(dirAHead.id);
 
     const versionDir = assetVersionDir(tmpDir, dirA, result.assetId, result.versionId);
     expect(await pathExists(path.join(versionDir, "asset.png"))).toBe(false);
@@ -246,6 +247,7 @@ describe("asset-extraction pipeline (end-to-end, network-free / key-free)", () =
     const extractResult = await runAssetExtract({
       cwd: tmpDir,
       directionId: dirA,
+      versionId: (await readHead(directionsDirOf(tmpDir, dirA), dirA)).id,
       describe: "the yak mascot",
       name: "Yak Mascot",
     });
@@ -267,7 +269,7 @@ describe("asset-extraction pipeline (end-to-end, network-free / key-free)", () =
 
     const indexAfter1 = await readAssetIndex(directionDir, extractResult.assetId);
     expect(indexAfter1.versions).toEqual([extractResult.versionId, regen1.versionId]);
-    expect(indexAfter1.head).toBe(regen1.versionId);
+    expect(indexAfter1.head).toBe("");
 
     const v2 = await readAssetVersion(directionDir, extractResult.assetId, regen1.versionId);
     expect(v2.producedBy).toContain("make it face left");
@@ -294,7 +296,7 @@ describe("asset-extraction pipeline (end-to-end, network-free / key-free)", () =
     expect(remembered!.source).toBe("asset");
 
     const indexAfter2 = await readAssetIndex(directionDir, extractResult.assetId);
-    expect(indexAfter2.head).toBe(regen2.versionId);
+    expect(indexAfter2.head).toBe("");
     expect(indexAfter2.versions).toHaveLength(3);
   });
 
@@ -302,12 +304,14 @@ describe("asset-extraction pipeline (end-to-end, network-free / key-free)", () =
     const yak = await runAssetExtract({
       cwd: tmpDir,
       directionId: dirA,
+      versionId: (await readHead(directionsDirOf(tmpDir, dirA), dirA)).id,
       describe: "the yak mascot",
       name: "Yak Mascot",
     });
     const wave = await runAssetExtract({
       cwd: tmpDir,
       directionId: dirB,
+      versionId: (await readHead(directionsDirOf(tmpDir, dirB), dirB)).id,
       describe: "the wave pattern",
       name: "Wave Pattern",
     });
@@ -359,6 +363,7 @@ describe("asset-extraction pipeline (end-to-end, network-free / key-free)", () =
     const yak = await runAssetExtract({
       cwd: tmpDir,
       directionId: dirA,
+      versionId: (await readHead(directionsDirOf(tmpDir, dirA), dirA)).id,
       describe: "the yak mascot",
       name: "Yak Mascot",
     });
@@ -416,6 +421,7 @@ describe("asset-extraction pipeline (end-to-end, network-free / key-free)", () =
     const wave = await runAssetExtract({
       cwd: tmpDir,
       directionId: dirB,
+      versionId: (await readHead(directionsDirOf(tmpDir, dirB), dirB)).id,
       describe: "the wave pattern",
       name: "Wave Pattern",
     });
@@ -483,6 +489,8 @@ describe("asset-extraction pipeline (end-to-end, network-free / key-free)", () =
           dirA,
           "--describe",
           "the mountain badge",
+          "--version",
+          (await readHead(directionsDirOf(tmpDir, dirA), dirA)).id,
           "--name",
           "Mountain Badge",
         ],
@@ -497,7 +505,7 @@ describe("asset-extraction pipeline (end-to-end, network-free / key-free)", () =
     const assetId = ids.find((id) => id.startsWith("mountain-badge"));
     expect(assetId).toBeDefined();
     const index = await readAssetIndex(directionDir, assetId!);
-    const v1 = index.head;
+    const v1 = index.versions[0];
     expect(
       await pathExists(path.join(directionDir, "extracted-assets", assetId!, "versions", v1, "asset.png")),
     ).toBe(false);
@@ -540,6 +548,7 @@ describe("asset-extraction pipeline (end-to-end, network-free / key-free)", () =
     const yak = await runAssetExtract({
       cwd: tmpDir,
       directionId: dirA,
+      versionId: (await readHead(directionsDirOf(tmpDir, dirA), dirA)).id,
       describe: "the yak mascot",
       name: "Yak Mascot",
     });

@@ -58,11 +58,11 @@ export async function mintDirectionId(
  * disambiguated with a numeric suffix on a same-millisecond collision. Never
  * reuses an existing version folder.
  */
-export async function mintVersionId(versionsDir: string): Promise<string> {
+export async function mintVersionId(versionsDir: string, reservedIds: ReadonlySet<string> = new Set()): Promise<string> {
   const base = new Date().toISOString().replace(/[:.]/g, "-");
   let id = base;
   let n = 2;
-  while (await pathExists(path.join(versionsDir, id))) {
+  while (reservedIds.has(id) || await pathExists(path.join(versionsDir, id))) {
     id = `${base}-${n}`;
     n += 1;
   }

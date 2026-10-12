@@ -14,7 +14,7 @@
  * There is no back button: the sidebar direction list is the switcher, so the
  * workspace is never a dead end to escape from.
  */
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, type JSX } from "react";
 import type { ChromePanel, DashboardDirection, DashboardVersion } from "../types";
 import { generateV1Request } from "../direction-actions.js";
 import { NotesComposer } from "./NotesComposer";

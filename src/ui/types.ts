@@ -148,7 +148,6 @@ export interface DirectionContent {
   summary: string;
   positioning: string;
   character: DirectionCharacter;
-  homepageMockupPrompt: string;
   styleTilePrompt: string;
   copyExamples: CopyExamples;
   usage: DirectionUsage;
@@ -170,14 +169,11 @@ export interface ApprovedProvenance {
 /**
  * Per-version generated artifact handles — OPAQUE values passed back verbatim
  * as `/api/asset?path=<handle>`; never parse or join them. Mirrors
- * `DirectionImages` in `src/ui/api.ts`. `styleBoardSvg` is the deterministic
- * board (a projection of the tokens); `styleBoard` is the evocative board (a
- * mood image). All keys optional so galleries degrade gracefully.
+ * `DirectionImages` in `src/ui/api.ts`. The tile is the foundation; the SVG
+ * is a deterministic token specimen. Evocative Boards have identified revisions.
  */
 export interface DirectionImages {
   styleTile?: string;
-  homepageMockup?: string;
-  styleBoard?: string;
   styleBoardSvg?: string;
   /** True when the tokens are EXTRACTED from the style tile — the studio labels
    * the board "extracted from the style tile" instead of "(exact)". */
@@ -190,6 +186,8 @@ export interface DirectionImages {
  * `versionId`/`createdAt` and per-version generated `images`.
  */
 export interface DashboardVersion extends DirectionContent {
+  /** Stable display number: deleting another version never renumbers this one. */
+  ordinal?: number;
   versionId: string;
   createdAt: string;
   producedBy?: string;
@@ -204,6 +202,7 @@ export interface DashboardVersion extends DirectionContent {
  */
 export interface DashboardExtractedAsset {
   id: string;
+  conditioning: "foundation" | "legacy-unverified";
   name: string;
   description: string;
   headVersionId: string;
@@ -219,7 +218,27 @@ export interface DashboardExtractedAsset {
    * transparent-background fallback, …) — surfaced verbatim so a keyed-but-failed
    * run is never mistaken for a missing key. Additive. */
   imageSkips?: string[];
+  foundation?: { directionId: string; versionId: string };
+  origin?: "generated" | "extracted";
+  status?: "pending" | "completed" | "failed";
 }
+
+export interface DashboardBoardRevision {
+  id: string; foundation: { directionId: string; versionId: string };
+  sourceRevisionId: string | null; instructions: string; instructionVersion: number;
+  createdAt: string; status: "pending" | "completed" | "failed"; error?: string; imagePath?: string;
+  conditioning: "foundation" | "legacy-unverified";
+}
+export interface DashboardBoard {
+  id: string; directionId: string; name: string; version: number;
+  instructions: string; instructionVersion: number; head: string | null;
+  retiredAt?: string; revisions: DashboardBoardRevision[];
+}
+export type VisualSource =
+  | { kind: "foundation"; directionId: string; versionId: string }
+  | { kind: "board"; directionId: string; versionId: string; boardId: string; revisionId: string };
+/** An empty Board can be focused even before it has a captureable revision. */
+export type VisualFocus = VisualSource | { kind: "board"; directionId: string; versionId: string; boardId: string; revisionId?: undefined };
 
 /**
  * A top-level direction — the aggregate root, flattened (WS-18): identity +
@@ -247,6 +266,7 @@ export interface DashboardDirection {
   /** ACTIVE extracted assets of THIS direction only (retired excluded).
    * Always present ([] when none) so consumers never null-check. */
   extractedAssets: DashboardExtractedAsset[];
+  boards?: DashboardBoard[];
   // ACTIVE only (retired/superseded excluded).
   memory: DashboardMemoryEntry[];
   // ACTIVE kept-crop refs; paths are cwd-relative, servable via `/api/asset?path=`.
@@ -578,7 +598,6 @@ export interface CreateDirectionInput {
     cta?: string;
   };
   styleTilePrompt?: string;
-  homepageMockupPrompt?: string;
 }
 
 /**
@@ -660,6 +679,7 @@ export type JobKind =
   | "audit"
   | "regenerate"
   | "asset"
+  | "board"
   | "surface";
 export type JobStatus = "running" | "succeeded" | "failed";
 
@@ -728,5 +748,15 @@ export interface ChatApproveRequest {
 export interface ChatTurn {
   role: "user" | "assistant";
   content: string;
-  toolCalls: ChatEvent[];
+  attachment?: { dataUrl: string; source: VisualSource };
+  toolCalls: ChatCardEvent[];
 }
+
+/** Local decision history, not an additional server/SSE event. */
+export type ChatCardEvent = ChatEvent | {
+  type: "approval_decision";
+  callId?: string;
+  toolName: string;
+  arguments: Record<string, unknown>;
+  approved: boolean;
+};

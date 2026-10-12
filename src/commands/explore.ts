@@ -13,7 +13,7 @@ import {
   type ContradictionDeps,
 } from "../brand/conflict-guard.js";
 import { generateDirections } from "../explore/generate-directions.js";
-import { briefIntentToSeed } from "../explore/token-intent.js";
+import { briefIntentToSeed, deriveLocksFromContext } from "../explore/token-intent.js";
 import { writeDirectionVersion } from "../explore/write-direction-version.js";
 import {
   proposeDivergentBriefs,
@@ -403,7 +403,8 @@ async function generateV1IntoExistingDirection(
     });
     extractLocks = analysisToLocks(analysis);
   }
-  const lockedColors = extractLocks.map((l) => l.hex);
+  const extractionLocks = [...deriveLocksFromContext(contextBlock), ...extractLocks];
+  const lockedColors = extractionLocks.map((l) => l.hex);
 
   const instructions = opts.instructions?.trim() || undefined;
   // Fresh per-run seed so repeated explores yield different-but-coherent
@@ -492,6 +493,7 @@ async function generateV1IntoExistingDirection(
     referenceImagePaths: refAbs,
     assembled,
     lockedColors,
+    extractionLocks,
   });
   filesWritten.push(...res.filesWritten);
   imageSkips.push(...res.imageSkips);

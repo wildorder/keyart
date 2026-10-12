@@ -71,7 +71,7 @@ function assertBuilt(): void {
   if (isStale) {
     throw new Error(
       "dist/ is not built — run `npm run build` before `vitest run`. " +
-        "(The canonical gate is `npm run build && npx tsc --noEmit && npx vitest run`.)",
+        "(The canonical gate is `npm run build && npm run typecheck && npm test`.)",
     );
   }
 }

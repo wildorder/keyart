@@ -146,6 +146,7 @@ beforeEach(async () => {
 
 afterEach(async () => {
   vi.restoreAllMocks();
+  vi.clearAllMocks();
   delete process.env.OPENAI_API_KEY;
   await fs.rm(tmpDir, { recursive: true, force: true });
 });

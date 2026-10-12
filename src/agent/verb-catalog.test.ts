@@ -15,6 +15,13 @@ const LEGACY_WORD = ["con", "cept"].join("");
 const LEGACY_FLAG = `--${LEGACY_WORD}`;
 
 describe("verb-catalog drift guards", () => {
+  it("exposes one-shot crop conditioning and attributed feedback thumbnail flags", () => {
+    for (const name of ["regenerate", "direction_revise"]) {
+      expect(getLeaf(name)!.flags.some((flag) => flag.name === "--reference")).toBe(true);
+    }
+    expect(getLeaf("direction_feedback")!.flags.some((flag) => flag.name === "--asset")).toBe(true);
+  });
+
   it("every leaf names a real, dispatchable command", () => {
     for (const leaf of listLeaves()) {
       const meta = getCommand(leaf.command);
@@ -41,7 +48,7 @@ describe("verb-catalog drift guards", () => {
 });
 
 describe("verb-catalog direction surface (WS-06)", () => {
-  it("exposes exactly 12 direction_* leaves, all command === 'direction'", () => {
+  it("exposes exactly 14 direction_* leaves, all command === 'direction'", () => {
     const directionLeaves = listLeaves().filter((l) => l.command === "direction");
     expect(directionLeaves.map((l) => l.toolName).sort()).toEqual(
       [
@@ -57,9 +64,11 @@ describe("verb-catalog direction surface (WS-06)", () => {
         "direction_brief_patch",
         "direction_reconcile",
         "direction_create",
+        "direction_revise",
+        "direction_delete_version",
       ].sort(),
     );
-    expect(directionLeaves.length).toBe(12);
+    expect(directionLeaves.length).toBe(14);
   });
 
   it("no leaf carries a legacy-era tool name or command", () => {
@@ -150,12 +159,12 @@ describe("verb-catalog applicable-flags-only (expansion guarantee)", () => {
     }
   });
 
-  it("asset_regenerate has --tweak/--remember but not --describe/--direction/--image", () => {
+  it("asset_regenerate has --tweak/--remember with explicit direction/source, but not --describe/--image", () => {
     const names = flagNames("asset_regenerate");
-    for (const present of ["--tweak", "--remember", "--author"]) {
+    for (const present of ["--tweak", "--remember", "--author", "--direction", "--revision", "--version"]) {
       expect(names.has(present)).toBe(true);
     }
-    for (const absent of ["--describe", "--direction", "--image", "--version", "--crop", "--name", LEGACY_FLAG]) {
+    for (const absent of ["--describe", "--image", "--crop", "--name", LEGACY_FLAG]) {
       expect(names.has(absent)).toBe(false);
     }
   });
@@ -173,13 +182,17 @@ describe("verb-catalog mutates classification", () => {
       "direction_brief_show",
       "doctor",
       "asset_list",
+      "board_list",
+      "board_show",
     ]);
     const DESTRUCTIVE = new Set([
       "approve",
+      "direction_delete_version",
       "direction_memory_delete",
       "rule_remove",
       "rule_edit",
       "asset_remove",
+      "board_retire",
     ]);
     const allNames = new Set(listLeaves().map((l) => l.toolName));
     const WRITE = new Set([...allNames].filter((n) => !NONE.has(n) && !DESTRUCTIVE.has(n)));
@@ -205,8 +218,8 @@ describe("verb-catalog tool names", () => {
     }
   });
 
-  it("expands to exactly 27 leaves (7 simple + 12 direction + 3 rule + 5 asset)", () => {
-    expect(listLeaves().length).toBe(27);
+  it("expands to exactly 37 leaves (7 simple + 14 direction + 3 rule + 7 asset + 6 board)", () => {
+    expect(listLeaves().length).toBe(37);
   });
 });
 

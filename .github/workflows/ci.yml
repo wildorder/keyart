@@ -42,7 +42,7 @@ jobs:
 
       # The canonical gate, split so a failure names itself.
       - run: npm run build
-      - run: npx tsc --noEmit
+      - run: npm run typecheck
       - run: npx vitest run
 
       # The packaging gate.

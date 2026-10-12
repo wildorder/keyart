@@ -44,12 +44,13 @@ export const WS18_TIER_A_BUILDERS = [
   "divergentExploreRequest",
   "approveRequest",
   "restoreVersionRequest",
+  "deleteVersionRequest",
   "forkRequest",
   "authoredCreateRequest",
   "elementFeedbackRequest",
   "extractAssetRequest",
   "exportAssetPackRequest",
-  "assetRegenerateRequest",
+  "assetReviseRequest",
   "assetRetireRequest",
   "moodboardUploadRequest",
   "moodboardAssetRetireRequest",
@@ -70,9 +71,12 @@ export const WS18_TIER_A_BUILDERS = [
 ] as const;
 
 /** Tier A (42) — the UNION of the two ownership scopes' enumerated builders. */
+export const BOARD_TIER_A_BUILDERS = ["boardCreateRequest", "boardReviseRequest", "boardUpdateRequest", "boardRetireRequest", "boardPrepareRequest", "assetGenerateRequest"] as const;
+
 export const TIER_A_BUILDERS: readonly string[] = [
   ...WS18_TIER_A_BUILDERS,
   ...WS20_TIER_A_BUILDERS,
+  ...BOARD_TIER_A_BUILDERS,
 ];
 
 /** WS-20's three Tier B builders. */

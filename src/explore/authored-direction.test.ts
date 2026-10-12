@@ -28,13 +28,16 @@ const FULL_PAYLOAD = {
   },
   styleTilePrompt:
     "Style tile with dark navy, #1A2B3C swatch label, Space Grotesk heading specimen.",
-  homepageMockupPrompt:
-    "Hero section with Inter typography and #FF5500 CTA button.",
+
 };
 
 // ── 1. Valid payload round-trips ──────────────────────────────────────────────
 
 describe("parseAuthoredDirection — valid payloads", () => {
+  it("rejects the retired fixed-homepage prompt field with valid-field guidance", () => {
+    expect(() => parseAuthoredDirection({ ...FULL_PAYLOAD, homepageMockupPrompt: "old homepage" })).toThrow(/Unknown field.*homepageMockupPrompt.*Valid fields/);
+  });
+
   it("full payload round-trips (after trimming)", () => {
     const result = parseAuthoredDirection(FULL_PAYLOAD);
     expect(result.name).toBe(FULL_PAYLOAD.name);
@@ -44,7 +47,6 @@ describe("parseAuthoredDirection — valid payloads", () => {
     expect(result.usage).toEqual(FULL_PAYLOAD.usage);
     expect(result.copyExamples).toEqual(FULL_PAYLOAD.copyExamples);
     expect(result.styleTilePrompt).toBe(FULL_PAYLOAD.styleTilePrompt);
-    expect(result.homepageMockupPrompt).toBe(FULL_PAYLOAD.homepageMockupPrompt);
   });
 
   it("full payload passes assertNoHexOrFontInProse (hexes only in prompts)", () => {
@@ -67,7 +69,6 @@ describe("parseAuthoredDirection — valid payloads", () => {
     expect(result.usage).toEqual({ rules: [], antiRules: [] });
     expect(result.positioning).toBeUndefined();
     expect(result.styleTilePrompt).toBeUndefined();
-    expect(result.homepageMockupPrompt).toBeUndefined();
   });
 
   it("usage rules/antiRules absent within usage object default to []", () => {
@@ -253,11 +254,10 @@ describe("assertNoHexOrFontInProse — catalog font in usage (SC-03)", () => {
 // ── 9. Hex/font allowed in prompts and copyExamples ──────────────────────────
 
 describe("assertNoHexOrFontInProse — prompts/copyExamples not scanned", () => {
-  it("hexes and fonts in styleTilePrompt/homepageMockupPrompt pass (SC-03)", () => {
+  it("hexes and fonts in styleTilePrompt pass (SC-03)", () => {
     const content = parseAuthoredDirection({
       ...FULL_PAYLOAD,
       styleTilePrompt: "Include #1A2B3C swatch and Space Grotesk label",
-      homepageMockupPrompt: "Use #FF5500 and Inter for body",
     });
     expect(() => assertNoHexOrFontInProse(content)).not.toThrow();
   });

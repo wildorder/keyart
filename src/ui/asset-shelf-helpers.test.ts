@@ -4,16 +4,15 @@ import {
   assetAffordances,
   assetImageStatus,
   assetImageStatusLabel,
-  sourceImageNameFor,
 } from "./asset-shelf-helpers.js";
 import type {
   DashboardDirection,
   DashboardExtractedAsset,
-  DirectionImages,
 } from "./types.js";
 
 const asset = (o: Partial<DashboardExtractedAsset>): DashboardExtractedAsset => ({
   id: "a1",
+  conditioning: "foundation",
   name: "Yak mascot",
   description: "A friendly yak",
   headVersionId: "v1",
@@ -159,38 +158,5 @@ describe("assetImageStatus", () => {
     expect(
       assetImageStatusLabel({ kind: "ok-degraded", detail: "opaque fallback" }),
     ).toBe("generated with a limitation: opaque fallback");
-  });
-});
-
-describe("sourceImageNameFor", () => {
-  const images: DirectionImages = {
-    styleTile: "a.png",
-    homepageMockup: "b.png",
-    styleBoard: "c.png",
-    styleBoardSvg: "d.svg",
-  };
-
-  it("maps styleTile", () => {
-    expect(sourceImageNameFor(images, "a.png")).toBe("styleTile");
-  });
-
-  it("maps homepageMockup", () => {
-    expect(sourceImageNameFor(images, "b.png")).toBe("homepageMockup");
-  });
-
-  it("maps styleBoard to moodboard (the evocative board)", () => {
-    expect(sourceImageNameFor(images, "c.png")).toBe("moodboard");
-  });
-
-  it("styleBoardSvg (the deterministic board) is never an extract source", () => {
-    expect(sourceImageNameFor(images, "d.svg")).toBeNull();
-  });
-
-  it("an unknown path yields null", () => {
-    expect(sourceImageNameFor(images, "unknown.png")).toBeNull();
-  });
-
-  it("absent images yields null", () => {
-    expect(sourceImageNameFor(undefined, "a.png")).toBeNull();
   });
 });

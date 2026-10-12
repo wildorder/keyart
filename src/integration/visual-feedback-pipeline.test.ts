@@ -255,7 +255,7 @@ describe("visual-feedback pipeline (end-to-end, no network / no key)", () => {
     const directionId = run.directionIds[0];
     const verDir = await headVersionDir(directionId);
 
-    for (const promptFile of ["style-tile-prompt.md", "homepage-mockup-prompt.md"]) {
+    for (const promptFile of ["style-tile-prompt.md"]) {
       const prompt = await fs.readFile(path.join(verDir, promptFile), "utf-8");
       expect(prompt).toContain("AVOID (do not use):");
       expect(prompt).toContain(NOTE);

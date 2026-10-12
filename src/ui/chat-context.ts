@@ -9,9 +9,10 @@
 export function buildChatTurnContext(
   directionId: string,
   versionId?: string | null,
-): { directionId: string; versionId?: string } {
+  board?: { boardId: string; revisionId?: string },
+): { directionId: string; versionId?: string; boardId?: string; revisionId?: string } {
   if (typeof versionId === "string" && versionId.length > 0) {
-    return { directionId, versionId };
+    return { directionId, versionId, ...board };
   }
   return { directionId };
 }

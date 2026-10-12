@@ -18,6 +18,7 @@
  * `.js`-extension imports, consumed by dumb renderers.
  */
 import { assetUrl } from "./asset-url.js";
+import type { BoardBatchEntry } from "../board/schema.js";
 import type {
   DirectionTokens,
   DirectiveChannel,
@@ -291,6 +292,7 @@ function directionPath(directionId: string): string {
 export function regenerateRequest(
   directionId: string,
   opts: {
+    versionId?: string;
     tweak?: string;
     feedback?: string;
     lockedRoles?: PaletteRole[];
@@ -302,6 +304,7 @@ export function regenerateRequest(
     path: "/api/actions/regenerate",
     body: {
       directionId,
+      ...(opts.versionId ? { versionId: opts.versionId } : {}),
       ...(opts.tweak ? { tweak: opts.tweak } : {}),
       ...(opts.feedback ? { feedback: opts.feedback } : {}),
       ...(opts.lockedRoles && opts.lockedRoles.length > 0
@@ -377,6 +380,11 @@ export function restoreVersionRequest(
   };
 }
 
+/** Permanently delete only the explicitly confirmed foundation version. */
+export function deleteVersionRequest(directionId: string, versionId: string, expectedVersion: number): StudioRequest {
+  return { method: "DELETE", path: `${directionPath(directionId)}/versions/${encodeURIComponent(versionId)}`, body: { expectedVersion } };
+}
+
 /** Fork the source's brief + moodboard into N drafts: `POST /api/directions/:sourceId/fork`. */
 export function forkRequest(
   sourceId: string,
@@ -437,23 +445,28 @@ export function exportAssetPackRequest(directionId: string): StudioRequest {
   return { method: "POST", path: "/api/asset-pack", body: { directionId } };
 }
 
-/** Regenerate one extracted asset: `POST /api/actions/asset-regenerate`. */
-export function assetRegenerateRequest(
-  directionId: string,
-  assetId: string,
-  tweak: string,
-  opts: { remember?: boolean } = {},
-): StudioRequest {
-  return {
-    method: "POST",
-    path: "/api/actions/asset-regenerate",
-    body: {
-      directionId,
-      assetId,
-      tweak,
-      ...(opts.remember ? { remember: true } : {}),
-    },
-  };
+export function boardCreateRequest(args: { directionId: string; versionId: string; name: string; describe: string }): StudioRequest {
+  return { method: "POST", path: "/api/actions/board-create", body: args };
+}
+export function boardReviseRequest(args: { directionId: string; boardId: string; versionId: string; revisionId: string | null; expectedInstructionVersion: number; tweak?: string }): StudioRequest {
+  return { method: "POST", path: "/api/actions/board-revise", body: args };
+}
+export function boardUpdateRequest(args: { directionId: string; versionId?: string; boardId?: string; captured?: BoardBatchEntry[]; resume?: string }): StudioRequest {
+  return { method: "POST", path: "/api/actions/board-update", body: args };
+}
+export function boardRetireRequest(directionId: string, boardId: string, expectedVersion: number): StudioRequest {
+  return { method: "DELETE", path: `${directionPath(directionId)}/boards/${encodeURIComponent(boardId)}`, body: { expectedVersion } };
+}
+export function boardPrepareRequest(args: { directionId: string; versionId?: string; boardId?: string; mode?: "revise"; revisionId?: string | null }): StudioRequest {
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(args)) if (value !== undefined) query.set(key, value === null ? "none" : value);
+  return { method: "GET", path: `/api/boards/prepare?${query}` };
+}
+export function assetGenerateRequest(args: { directionId: string; versionId: string; name: string; describe: string }): StudioRequest {
+  return { method: "POST", path: "/api/actions/asset-generate", body: args };
+}
+export function assetReviseRequest(directionId: string, assetId: string, tweak: string, opts: { remember?: boolean; revisionId?: string; versionId?: string } = {}): StudioRequest {
+  return { method: "POST", path: "/api/actions/asset-revise", body: { directionId, assetId, tweak, ...opts } };
 }
 
 /** Retire one extracted asset: `DELETE /api/directions/:id/extracted-assets/:assetId`. */
@@ -505,7 +518,8 @@ export function moodboardAssetRetireRequest(
 export function chatSendRequest(payload: {
   sessionId?: string;
   message: string;
-  context: { directionId: string; versionId?: string };
+  context: { directionId: string; versionId?: string; boardId?: string; revisionId?: string };
+  attachment?: { dataUrl: string; source: import("./types.js").VisualSource };
 }): StudioRequest {
   return { method: "POST", path: "/api/chat", payload };
 }

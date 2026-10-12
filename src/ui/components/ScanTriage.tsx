@@ -13,7 +13,7 @@
  * the deliberate first-scan bootstrap (U1/SC-11) so the studio can start the
  * very first scan. Only the checklist is conditional on a proposal existing.
  */
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, type JSX } from "react";
 import type { DashboardSurface, ScanCandidate } from "../types";
 import {
   proposalIsRefined,

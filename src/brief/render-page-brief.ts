@@ -46,9 +46,6 @@ export function renderPageBrief(opts: {
   // Image requirements
   sections.push(`## Image requirements\n`);
   sections.push(`**Style tile prompt:** ${direction.styleTilePrompt}`);
-  sections.push(
-    `**Homepage mockup prompt:** ${direction.homepageMockupPrompt}\n`,
-  );
 
   // Component & style expectations
   sections.push(`## Component & style expectations\n`);

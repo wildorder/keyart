@@ -54,7 +54,6 @@ function makeVersion(
     summary: "A summary.",
     positioning: "A positioning statement.",
     character: {},
-    homepageMockupPrompt: "",
     styleTilePrompt: "",
     copyExamples: { headline: "h", subheadline: "s", cta: "c" },
     usage: { rules: [], antiRules: [] },
@@ -152,14 +151,20 @@ async function writeAssetFixture(
     source: AssetSource;
     withPng?: boolean;
     dryRun?: boolean;
+    conditioning?: AssetVersion["conditioning"];
   },
 ): Promise<void> {
   const directionDir = directionDirOf(opts.directionId);
   const version: AssetVersion = {
+    formatVersion: 2,
+    status: opts.withPng ? "completed" : "pending",
+    conditioning: opts.conditioning ?? "foundation",
+    contextSnapshot: "{}",
+    foundation: { directionId: opts.directionId, versionId: opts.source.kind === "foundation" ? opts.source.versionId : VERSION_ID_1 },
     id: opts.versionId,
     createdAt: "2026-07-26T00:00:00.000Z",
     description: opts.description ?? `${opts.name} description`,
-    source: opts.source,
+    provenance: { kind: "extracted", source: opts.source },
     files: opts.withPng ? ["asset.png"] : [],
     ...(opts.dryRun !== undefined ? { dryRun: opts.dryRun } : {}),
   };
@@ -223,6 +228,7 @@ async function loadRunAssetPack() {
 }
 
 const SRC_A: AssetSource = {
+  kind: "foundation",
   directionId: "direction-a",
   versionId: VERSION_ID_1,
   image: "styleTile",
@@ -492,16 +498,22 @@ describe("runAssetPack — asset scoping + pending state", () => {
     expect(result.assets).toEqual([
       {
         id: "pending-asset",
+        conditioning: "foundation",
         name: "Pending asset",
         description: "Pending asset description",
         pending: true,
+        foundation: { directionId: "direction-a", versionId: VERSION_ID_1 },
+        provenance: { kind: "extracted", source: SRC_A },
       },
       {
         id: "shipped-asset",
+        conditioning: "foundation",
         name: "Shipped asset",
         description: "Shipped asset description",
         pending: false,
         file: "shipped-asset.png",
+        foundation: { directionId: "direction-a", versionId: VERSION_ID_1 },
+        provenance: { kind: "extracted", source: SRC_A },
       },
     ]);
 
@@ -509,11 +521,42 @@ describe("runAssetPack — asset scoping + pending state", () => {
       path.join(packDirOf("direction-a"), "contact-sheet.svg"),
       "utf-8",
     );
-    expect(sheet).toContain("pending (dry-run)");
+    expect(sheet).toContain("pending");
   });
 });
 
 describe("runAssetPack — determinism + honesty", () => {
+  it("packs an explicitly migrated artifact without claiming verified tile conditioning", async () => {
+    const config = mockConfig();
+    await seedDirection(config, "default");
+    await writeDirectionVersions(config, "direction-a", [V1]);
+    await writeAssetFixture("imported", { name: "Imported", directionId: "direction-a", versionId: "legacy-r1", source: SRC_A, withPng: true, conditioning: "legacy-unverified" });
+    const runAssetPack = await loadRunAssetPack();
+    const result = await runAssetPack({ cwd: tmpDir, directionId: "direction-a" });
+    expect(result.assets[0].conditioning).toBe("legacy-unverified");
+    expect((await readManifest("direction-a")).assets[0].conditioning).toBe("legacy-unverified");
+    expect(await fs.readFile(path.join(packDirOf("direction-a"), "contact-sheet.md"), "utf8")).toContain("tile conditioning not verified");
+    expect(result.assetsIncluded).toEqual(["imported"]);
+  });
+
+  it("refuses unsupported version data before touching a previous pack", async () => {
+    const config = mockConfig();
+    await seedDirection(config, "default");
+    await writeDirectionVersions(config, "direction-a", [V1]);
+    await writeAssetFixture("old", { name: "Old", directionId: "direction-a", versionId: "r1", source: SRC_A, withPng: true });
+    const runAssetPack = await loadRunAssetPack();
+    await runAssetPack({ cwd: tmpDir, directionId: "direction-a" });
+    const manifestPath = path.join(packDirOf("direction-a"), "pack-manifest.json");
+    const before = await fs.readFile(manifestPath, "utf8");
+    const sourcePath = path.join(directionDirOf("direction-a"), "extracted-assets", "old", "versions", "r1", "asset-version.json");
+    const unsupported = JSON.stringify({ id: "r1", source: SRC_A });
+    await fs.writeFile(sourcePath, unsupported);
+    await expect(runAssetPack({ cwd: tmpDir, directionId: "direction-a" })).rejects.toThrow(/convert/);
+    expect(await fs.readFile(manifestPath, "utf8")).toBe(before);
+    expect(await fs.readFile(sourcePath, "utf8")).toBe(unsupported);
+    expect(await fs.readFile(path.join(packDirOf("direction-a"), "old.png"))).toHaveLength(6);
+  });
+
   it("writes byte-identical files across two runs with identical input, with cwd-relative forward-slash filesWritten", async () => {
     const config = mockConfig();
     await seedDirection(config, "default");

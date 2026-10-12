@@ -50,24 +50,6 @@ function composeStyleTilePrompt(
 }
 
 /**
- * Compose a deterministic homepage mockup prompt when the agent omits it.
- * Pure string assembly — no model call, no I/O.
- */
-function composeHomepagePrompt(
-  content: AuthoredDirectionContent,
-  briefText: string,
-): string {
-  const snippet = briefText.slice(0, 100).trim();
-  const layout = [content.character.layout, content.character.composition]
-    .filter(Boolean)
-    .join(", ");
-  let out = `Design a homepage mockup for ${content.name}: ${content.summary}.`;
-  if (layout) out += ` Layout / composition: ${layout}.`;
-  if (snippet) out += ` Inspired by: ${snippet}`;
-  return out;
-}
-
-/**
  * Keyless core: turn host-agent-authored direction content into a real Direction
  * at v1. No model call is ever made — `writeDirectionVersion` is called with
  * `skipImages: true`, which fully bypasses the model-generation/extraction path.
@@ -161,9 +143,6 @@ export async function createAuthoredDirection(opts: {
   const styleTilePrompt =
     (content.styleTilePrompt ?? "").trim() ||
     composeStyleTilePrompt(content, briefText);
-  const homepageMockupPrompt =
-    (content.homepageMockupPrompt ?? "").trim() ||
-    composeHomepagePrompt(content, briefText);
 
   // ── Mint the direction id + build the v1 DirectionVersion ─────────────────
   // mintDirectionId slugifies content.name and disambiguates with a numeric
@@ -195,7 +174,6 @@ export async function createAuthoredDirection(opts: {
     usage: content.usage,
     copyExamples: content.copyExamples,
     styleTilePrompt,
-    homepageMockupPrompt,
     tokens,
     id: "",                  // writer mints the versionId (v1)
     createdAt: new Date().toISOString(),

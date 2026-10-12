@@ -29,4 +29,4 @@
 ## Image Prompt References
 
 - **Style tile prompt:** see `brand/approved/style-tile-prompt.md`
-- **Homepage mockup prompt:** see `brand/approved/homepage-mockup-prompt.md`
+- **Application studies:** named Boards retain their own foundation and revision provenance; select an explicit Board revision when using one as a reference.

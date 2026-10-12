@@ -162,12 +162,21 @@ export const DirectionRecordSchema = z
     brief: BrandBriefSchema,
     assets: z.array(AssetRefSchema).default([]), // moodboard + kept crops
     versions: z.array(z.string()).default([]), // ordered version ids; [] ⇒ draft
+    // Stable display ordinals, including deleted ids so labels and identities are never reused.
+    versionOrdinals: z.record(z.number().int().positive()).optional(),
     head: z.string().nullable().default(null), // null ⇒ draft
     version: z.number().int().nonnegative(), // optimistic concurrency
     createdAt: z.string(), // ISO 8601
     updatedAt: z.string(), // ISO 8601
   })
   .superRefine((record, ctx) => {
+    if (record.versionOrdinals) {
+      const values = Object.values(record.versionOrdinals);
+      if (new Set(values).size !== values.length || record.versions.some((id) => !Object.hasOwn(record.versionOrdinals!, id))) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["versionOrdinals"],
+          message: "Version ordinals must be unique and include every live version." });
+      }
+    }
     if (record.versions.length === 0) {
       if (record.head !== null) {
         ctx.addIssue({
@@ -193,6 +202,17 @@ export const DirectionRecordSchema = z
     }
   });
 export type DirectionRecord = z.infer<typeof DirectionRecordSchema>;
+
+/** Legacy records derive their original ordinal without mutating disk. */
+export function versionOrdinals(record: Pick<DirectionRecord, "versions" | "versionOrdinals">): Record<string, number> {
+  return record.versionOrdinals ? { ...record.versionOrdinals } :
+    Object.fromEntries(record.versions.map((id, index) => [id, index + 1]));
+}
+
+export function versionOrdinal(record: Pick<DirectionRecord, "versions" | "versionOrdinals">, id: string): number | undefined {
+  const ordinals = versionOrdinals(record);
+  return Object.hasOwn(ordinals, id) ? ordinals[id] : undefined;
+}
 
 export const DirectionMemorySchema = z.object({
   directionId: z.string(), // ISOLATION ANCHOR: memory always names its direction

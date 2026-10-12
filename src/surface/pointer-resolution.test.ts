@@ -62,7 +62,6 @@ function makeDirectionVersion(
     summary: "A summary.",
     positioning: "A positioning statement.",
     character: {},
-    homepageMockupPrompt: "",
     styleTilePrompt: "",
     copyExamples: { headline: "h", subheadline: "s", cta: "c" },
     usage: { rules: [], antiRules: [] },
@@ -166,10 +165,15 @@ async function seedClaimingAsset(
 ): Promise<void> {
   const directionDir = directionDirOf(directionId);
   const version: AssetVersion = {
+    formatVersion: 2,
+    status: opts.png ? "completed" : "pending",
+    conditioning: "foundation",
+    contextSnapshot: "{}",
+    foundation: { directionId, versionId: VERSION_ID },
     id: ASSET_VERSION_ID,
     createdAt: "2026-08-05T01:00:00.000Z",
     description: `the ${assetId} element`,
-    source: { directionId, versionId: VERSION_ID, image: "styleTile" },
+    provenance: { kind: "generated" },
     files: ["asset-prompt.md", ...(opts.png ? ["asset.png"] : [])],
   };
   await appendVersionToIndex(
@@ -298,8 +302,8 @@ describe("runSurfaceFill — fills the approved direction's slot from its pinned
         "utf-8",
       ),
     );
-    expect(versionRecord.source.directionId).toBe("direction-a");
-    expect(versionRecord.source.versionId).toBe(VERSION_ID);
+    expect(versionRecord.foundation.directionId).toBe("direction-a");
+    expect(versionRecord.foundation.versionId).toBe(VERSION_ID);
 
     // Nothing was written under direction-b: its tree still holds exactly the
     // one pre-seeded claimant.

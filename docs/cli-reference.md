@@ -20,14 +20,15 @@ Prints a **readiness report** and exits non-zero on any hard prerequisite miss. 
 
 Manage **directions** — self-contained brand explorations under `brand/directions/<id>/`, each with its own `direction.yaml` (identity, status, embedded structured brief, moodboard assets, `versions[]`, `head`), isolated `memory.yaml`, the generated `brief.md` projection, and a `versions/` tree. Memory is hard-isolated by location: feedback on one direction never bleeds into a sibling.
 
-The fourteen-verb family: `new | list | show | status | fork | create | archive | reject | park | revive | brief … | feedback | memory … | reconcile`.
+The direction verb family: `new | list | show | status | fork | create | revise | delete-version | archive | reject | park | revive | brief … | feedback | memory … | reconcile`.
 
 - `direction new <name> [--describe "<seed>"]` — mint a **draft** direction (record + brief projection + empty memory, NO version folder). A `--describe` seed lands in the brief's `otherNotes` through the shared sanitizer — no hex and no catalog font family ever reaches a brief field (a typed hex belongs in a color-lock; see `regenerate`). Next step: `keyart explore <id>`.
 - `direction list [--include-archived]` — one draft-aware summary per direction (id, name, status, draft/head, version count). Archived directions are hidden unless `--include-archived`.
 - `direction show <id>` / `direction status <id>` — the same summary / a read-only status projection for one direction.
 - `direction fork <id> [--name <name>] [--count N] [--with-memory]` — keyless what-if branching: copies the source's brief verbatim and its moodboard files (collision-safe) into N new **drafts**, appends exactly one fork-provenance `decision` per fork, copies memory only under `--with-memory` (as fresh attributed appends), and never touches the source. Versions and extracted assets are never copied — a fork is a new exploration, not a duplicate of a render.
 - `direction create '<json>' --from <directionId>` — the keyless authored path; see its own section below.
-- `direction archive <id>` — the non-destructive shelve: the record and its whole tree stay on disk; reversible via `revive`. (There is no destructive remove verb.)
+- `direction archive <id>` — the non-destructive shelve: the record and its whole tree stay on disk; reversible via `revive`. There is no whole-direction destructive remove verb.
+- `direction delete-version <id> --version <versionId> --yes [--expected-version <n>]` — permanently delete exactly one foundation version. The approved foundation is protected: approve another first. Boards and assets are untouched, with no replacement prompt or reassignment at deletion time. Surviving version numbers remain stable; deleted numbers are never reused.
 - `direction reject <id> [--note <text>]` — mark a direction rejected (reversible); the optional note is recorded as a `decision` memory entry.
 - `direction park <id>` / `direction revive <id>` — pause a direction, or bring a parked/rejected/archived direction back to `active`.
 - `direction feedback <id> --body "<text>" [--kind feedback|learning|decision] [--author <who>] [--channel visual|copy|both] [--polarity prefer|avoid]` — append attributed memory to exactly one direction (scope is location — there is no wider scope to select). `--channel`/`--polarity` set structural classification for the image-lane compiler; absent entries fall back to the `classifyDirective` heuristic. It feeds that direction's **next** explore/regenerate.
@@ -86,7 +87,7 @@ npx keyart direction reconcile alpha --contradiction <id> --action retire
 
 `explore` is how a direction gets its **first** version, and how new sibling directions are born. It has three mutually exclusive forms:
 
-1. **`keyart explore <directionId>`** — generate **v1 into an existing draft**. A direction that already has versions is rejected with a teaching error naming `regenerate` (never a silent second seed). Takes no `--describe`/`--from`/`--count`.
+1. **`keyart explore <directionId>`** — generate **v1 into an existing draft**. A direction that already has versions is rejected with a teaching error naming `direction revise` (never a silent second seed). Takes no `--describe`/`--from`/`--count`.
 2. **`keyart explore --describe "<seed>" [--count N]`** — **divergent explore**: propose N (default 3) genuinely **distinct** briefs from the seed text, mint N new draft directions, and generate v1 into each. With a key, an LLM proposes contrasting briefs; keyless, a deterministic **floor** guarantees distinctness (ordinal-embedded positioning). A hex typed into the seed routes to a per-direction **color-lock `decision`** (`Color locked: #rrggbb`) — never a brief field.
 3. **`keyart explore --from <directionId> [--count N]`** — the same divergent mode, seeded from an existing direction's rendered brief instead of freeform text.
 
@@ -96,7 +97,7 @@ Shared behavior:
 - **Structured tokens, extracted from the image.** The image model renders the style tile freely (no hard color/font lock — only your locked colors ride in as soft guidance), then the version's structured `tokens` are **transcribed back off it** by one vision read: a **two-tier** palette (six WCAG-finished semantic roles + an unbounded, hue-named `brand[]` keeping every printed color), `typography`, `shape`, and `provenance`. Each color is **role-tagged by the vision read**; the palette engine finishes the untagged neutrals for WCAG contrast; typography is vision-described and mapped to the nearest loadable catalog family (approximate). With no key, the retained intent→engine fallback still yields a full six-role board.
 - **Reference-grounded, multi-level, intent-tagged.** The direction's uploaded moodboard images *and* any run-level `--reference <path>` images feed generation. Each reference carries an **intent** (`--intent inspire|extract`, default `inspire`): `inspire` refs go to the authoring vision model and the reference-capable image model; `extract` refs are vision-analyzed into dominant colors that **seed/lock** the palette engine (never a direct image-edit source). All references land in the version's `context-snapshot.md` as provenance.
 - `--instructions <text>` — one-shot steering for this run only. It shapes the model prompt and is recorded in the run's `context-snapshot.md` for provenance, but is **not** saved to memory.
-- **Shared art-direction tail.** Memory classified as visual (hard rules as MUST, positive directives as PREFER, negatives as AVOID) is assembled by `composeArtDirection` and injected into the style-tile, homepage-mockup, and evocative-board prompts. A hard-rule contradiction surfaces a structured warning — key-free, via the deterministic floor.
+- **Shared art-direction tail.** Memory classified as visual (hard rules as MUST, positive directives as PREFER, negatives as AVOID) is assembled by `composeArtDirection` and injected into foundation, Board, and asset prompts through their shared context compiler. A hard-rule contradiction surfaces a structured warning — key-free, via the deterministic floor.
 - Every version contains `brief-snapshot.md` (a frozen copy of the rendered brief) and `context-snapshot.md` (the exact assembled context fed to the model). Nothing is ever overwritten.
 
 ```bash
@@ -109,30 +110,39 @@ npx keyart explore warm-editorial --reference brand/input/references/palette.png
 
 **Adding another option.** To grow the set of directions, use divergent explore (`--describe`/`--from`) or `direction fork`. To iterate an *existing* direction (feedback → a new version of the same direction), use `keyart regenerate <directionId>` below.
 
-### `keyart regenerate <directionId> [--tweak "<text>"]`
+### `keyart direction revise <directionId> [--version <sourceVersion>] [--tweak "<text>"]`
 
-The **unified iterate action** — re-render the visuals and **re-extract** the unlocked tokens, never editing the direction's text or copy. Addressed by `<directionId>`; regenerate always advances that direction's own head. A draft (no versions) is rejected with a teaching error naming `explore <id>`.
+Append a new immutable foundation to the same direction. The optional source version defaults to the current head; an explicit older source remains fixed while the head advances. `regenerate` is an alias of this same core. A draft must run `explore <id>` first.
 
-- **Regenerate honors the focused direction's own memory** — it assembles that direction's entries + the global layer; sibling direction memory is never included.
-- With `OPENAI_API_KEY` + an image model, regenerates BOTH graphics (style tile + homepage mockup) plus the evocative style board from the current brief + your **locked colors** (soft guidance) + kept (`inspire`) crops + discard **negatives**, then **re-extracts the unlocked color/type tokens from the new style tile** — locked roles held verbatim (**lock-and-rotate**). Degrades gracefully (a clear note, no crash) when the image model/key is unavailable.
-- Re-renders the **deterministic** palette + type board (`style-board.svg` + `style-board.md`) from the re-extracted tokens — always, no key needed (it projects the existing tokens in dry-run).
-- **The four gestures converge here.** Lock a token, clip/keep a region, discard with a note, or enter generic feedback — each feeds this one regenerate (locks / kept references / an AVOID block / brief-steer) and its re-extraction. This is **biased regeneration**, not literal per-region inpainting: the tile is regenerated whole, biased toward keeps and away from discards; a discard thumbnail is never passed to the model as a reference.
-- **Both reroll modes.** The coolors-style algorithmic reroll (freeze a swatch, regenerate the rest, no image call) and pushing that rerolled palette into this creative regenerate as locked-color guidance compose in either order.
-- **Shared art-direction tail.** The same `composeArtDirection` block (MUST/PREFER/AVOID) is injected into every prompt — identical to what `explore` produces for the same context. A live `--tweak` contradicting a hard rule is subordinated (rule wins) with a surfaced warning; the compiled block is never modified by the detection port.
-- `--tweak "<text>"` — one-shot art direction appended to the image prompts for this pass only (not saved). The only persisted change is the re-extracted tokens.
-- The result **appends a new version** (`brand/directions/<directionId>/versions/<versionId>/`) — prior versions are never touched (append-only history); the new version becomes the head.
-- Like `explore`, it is a generation action dispatchable from the CLI and MCP (`keyart_brand`).
+`--reference <project-relative-image>` supplies a one-shot image reference without
+adding it to the moodboard. In studio chat, an attached crop is supplied this way
+when the user asks for a foundation revision. For visual feedback,
+`direction feedback --asset <project-relative-image>` preserves a thumbnail;
+`--channel visual --polarity avoid` records a negative without using its image
+as a positive generation reference.
 
-```bash
-npx keyart regenerate direction-a
-npx keyart regenerate dire-a --tweak "cooler, more editorial"
-```
+Generation renders one new style tile, transcribes its palette/type, and finishes the tokens around explicit role/color locks. The current working brief and active direction/global memory shape the new version; prior versions, Boards, assets, and approval stay unchanged. Kept crops condition generation; discard thumbnails never become positive references. A tweak is captured as generation provenance and attributed direction feedback. With no key, the new version has honest placeholder tokens/prompts and no substituted image.
+
+Studio palette/field saves also append through this writer. Saving a changed look never rewrites an old JSON record or presents an old tile as the new look. The deterministic `style-board.svg/.md` specimen projects the newly extracted tokens, without a model call.
+
+### `keyart board <create|revise|update|list|show|retire>`
+
+A Board is a named, direction-owned exploration of a use case. Its durable local brief controls content/composition; the selected foundation supplies brand facts. Local token conflicts teach revising the direction. The foundation tile is the primary image reference; a previous Board render is composition guidance only.
+
+- `board create --direction <id> --version <v> --name <name> --describe <brief>` creates one Board and its first attempt. The foundation is required.
+- `board revise <boardId> --direction <id> [--revision <r>] [--version <v>] [--tweak <text>]` appends a revision. Source defaults to the completed Board head; target independently defaults to the latest direction head, not approved. Either may select history. Empty tweak retains durable local intent.
+- `board update --direction <id> --version <v> [--board <id>]` captures active Board identities, source revisions, local instruction versions, and the explicit target, then runs that same revision operation. Assets and approval are excluded.
+- `board update --direction <id> --resume <batchId>` retries unfinished entries of that capture. Completed results are recovered without new generation, including after interruption. Changed instructions are reported as conflicts. A fresh update requests fresh revisions.
+- `board list --direction <id>`, `board show <boardId> --direction <id> [--revision <r>]` inspect records/history.
+- `board retire <boardId> --direction <id>` retires non-destructively; history remains accessible.
+
+Attempts are `pending`, `failed`, or `completed`. Only completed renders advance the successful head. Keyless or tile-less foundations still save prompts/pending records. A partial update reports per-Board outcomes, never blanket success. Studio views select the latest completed revision for the viewed foundation; other history is selectable explicitly.
 
 ### `keyart direction create '<json>' --from <directionId>`
 
 The **keyless authored-direction path** — the direction-level twin of `direction brief set/patch`. A host agent (Cursor / Claude Code) supplies the direction content as JSON, and Keyart persists it as a new Direction at v1 with **no Keyart model call**. `--from` names the EXISTING direction whose brief seeds the new one.
 
-The JSON payload accepts: `name`, `summary`, `positioning?`, structured `character` (`{mood?,composition?,layout?,imagery?,texture?,rhythm?}`), `usage` (`{rules[],antiRules[]}`), `copyExamples` (`{headline,subheadline,cta}`), and optional `styleTilePrompt`/`homepageMockupPrompt`. A `tokens` key is **rejected** — tokens are engine-SEEDED from the brief's soft intent (honoring memory color-locks verbatim) and become EXTRACTED on the first `regenerate`. Hex codes and catalog font family names in `character`/`usage` prose are rejected at create time.
+The JSON payload accepts: `name`, `summary`, `positioning?`, structured `character` (`{mood?,composition?,layout?,imagery?,texture?,rhythm?}`), `usage` (`{rules[],antiRules[]}`), `copyExamples` (`{headline,subheadline,cta}`), and optional `styleTilePrompt`. A `tokens` key is **rejected** — tokens are engine-SEEDED from the brief's soft intent (honoring memory color-locks verbatim) and become EXTRACTED on the first `direction revise`. Hex codes and catalog font family names in `character`/`usage` prose are rejected at create time.
 
 Dispatchable via CLI, MCP (`keyart_brand { command: "direction", input: ["create", "<json>", "--from", "<directionId>"] }`), and the studio. Create mints a collision-safe direction id (never a 409 — that concurrency guard lives on versioned-record writes such as a brief PATCH).
 
@@ -140,24 +150,18 @@ Dispatchable via CLI, MCP (`keyart_brand { command: "direction", input: ["create
 keyart direction create '{"name":"Bold Modern","summary":"Clean, high-contrast tech aesthetic","character":{"mood":"confident, direct"},"usage":{"rules":["Use the primary color for CTAs"],"antiRules":["Avoid decorative gradients"]},"copyExamples":{"headline":"Ship faster","subheadline":"Built for developers","cta":"Get started"}}' --from warm-editorial
 ```
 
-### `keyart asset <extract|regenerate|list|remove|pack>`
+### `keyart asset <generate|extract|revise|regenerate|list|remove|pack>`
 
-Extract a standalone, direction-scoped visual element off a direction's generated imagery, iterate it, list/retire it, and pack a direction's active assets for handoff. An `ExtractedAsset` is a **produced, versioned, standalone artifact** — deliberately distinct from an `AssetRef` (a path-only reference, e.g. a moodboard image or a kept crop, that's *fed into* generation). Assets are evocative-imagery-tier only: they never touch the token spine (`brand.css`, the deterministic board) or a direction's record. All five verbs are keyless/dry-run capable and dispatch identically from the CLI and MCP (`keyart_brand`).
+Usable artwork is direction-scoped under `extracted-assets/`, with immutable versions. `ExtractedAsset` is an output record; `AssetRef` remains an input reference. Assets never supply tokens or silently feed themselves back into direction generation.
 
-- `asset extract --direction <dirId> --describe "<text>" [--image styleTile|homepageMockup|moodboard] [--version <versionId>] [--crop <path>] [--name <name>]` — isolate an element from a direction's generated imagery (by description, or a studio-supplied crop) onto a **transparent background** — one image-model call, composed through the same `composeArtDirection` block as every other generated image (a global hard rule reaches it as MUST, a discard note as AVOID). **Keyless extract records the prompt + the `ExtractedAsset` v1 — no PNG** without an API key.
-- `asset regenerate <assetId> --tweak "<text>" [--remember] [--author <who>]` — **append-only versions**: the tweak lands as a new head version, prior versions byte-untouched. **Asset-local by default — no memory write.** `--remember` additionally logs the tweak as one direction-scoped feedback entry.
-- `asset list [--direction <dirId>]` — list active (non-retired) assets, optionally filtered to one direction. Each row includes the **cwd-relative path to the head PNG** (`png=…`) so a caller — human or coding agent — can retrieve the file without knowing the store layout; a pending (no-PNG) head says so instead.
-- `asset remove <assetId>` — **non-destructive, idempotent retire**: sets a `retiredAt` marker (nothing on disk is deleted); drops the asset from `asset list` and the next `asset pack`. Retiring an already-retired asset is a no-op.
-- `asset pack [--direction <dirId>]` — the deterministic designer handoff, defaulting to the approved direction: `brand/generated/asset-pack/<directionId>/` gets head PNGs of active assets, a code-rendered `contact-sheet.svg`/`.md`, a Figma-importable **W3C DTCG `tokens.json`** whose color hexes are byte-identical to `brand.css`, and a `pack-manifest.json` with per-asset provenance. **Fully keyless** — zero model calls, byte-identical output across runs for identical input; a pending (no-PNG) asset is listed honestly, never fabricated. The pack is also refreshed automatically by `approve` — run `asset pack` explicitly to refresh it after extracting or retiring an asset between approves.
+- `asset generate --direction <id> --version <v> --name <name> --describe <brief>` makes standalone artwork with the requested composition/background. An explicit foundation is required.
+- `asset extract --direction <id> --version <v> --image styleTile --describe <text> [--name <name>] [--crop <path>]` isolates an element from that exact foundation. Alternatively select `--board <boardId> --revision <revisionId>`; its recorded foundation is authoritative. Arbitrary historical fixed image names are unsupported.
+- `asset revise <assetId> --direction <id> --tweak <text> [--revision <sourceRevision>] [--version <replacementFoundation>] [--remember] [--author <who>]` appends a new asset version conditioned on its original foundation and previous image. It retains the source foundation, even when the direction head advances. If that foundation was deleted, revision requires an explicit replacement via `--version`; chat asks the user and the studio offers a picker only when revision is requested. Existing asset files, history, and extraction provenance stay unchanged. `asset regenerate` is the alias. Tweaks stay asset-local unless `--remember` is explicit.
+- `asset list [--direction <id>]` lists active assets and their available image paths.
+- `asset remove <assetId> [--direction <id>]` retires non-destructively and idempotently.
+- `asset pack [--direction <id>]` writes active completed head PNGs, deterministic contact sheets, DTCG `tokens.json`, and a provenance manifest. It defaults to the approved direction and is also run by approve. Packing never regenerates stale assets; each asset retains its actual foundation and conditioning provenance.
 
-```bash
-keyart asset extract --direction direction-a --describe "the yak mascot"
-keyart asset regenerate yak-mascot --tweak "make it face left"
-keyart asset regenerate yak-mascot --tweak "smile more" --remember --author tim
-keyart asset list --direction direction-a
-keyart asset remove yak-mascot
-keyart asset pack --direction direction-a
-```
+Generation uses one image call, with the foundation tile first. Extraction adds a selected source/crop and requests isolation/transparency; direct generation permits appropriate backgrounds. Revision adds the previous asset as guidance. With no key or no usable foundation tile, prompts and pending records are saved without an invented PNG. Failed/pending attempts remain inspectable and do not advance the completed head.
 
 ### `keyart surface <schema|show|set|patch|request|retire|bind|fill|scan>`
 
@@ -224,7 +228,7 @@ Takes a Playwright screenshot of the URL and critiques it against the approved s
 
 ### `keyart serve [--port <port>] [--dev]`
 
-Starts the local **writable authoring studio** — a React/Vite app at `http://localhost:4317` by default — so you can drive the whole loop from a browser instead of the terminal. It **browses** directions (with status, thumbnails, and updated dates), per-direction memory, the global rules panel, briefs, the approved direction, guides, and audits, **and writes**: mint/fork/author directions, edit briefs, add notes, upload moodboards, add global rules / promote a learning, regenerate and approve from the direction workspace, and trigger explore/approve/audit with live job progress. The IA is **single-level and direction-first**: the sidebar lists directions; selecting one opens the `DirectionWorkspace` — a sticky two-line `DirectionChrome` (the direction name and status, with **Generate v1** on a draft; then the Brief | Moodboard | Memory | Setup drawers) over the focus pane: one gallery **stage** (the staged image, a thumbnail row that chooses it, and a Select | Crop | Eyedrop toggle), a swatch-row palette with the dense editable board behind "Edit palette", segmented version pills, and compare. **+ New direction** lives in the sidebar. The **chat rail** is a full-height third column beside the workspace that scrolls on its own; memory stays in the Memory drawer in the main column. It also turns the generated imagery into a **feedback surface**: switch the stage to **Crop** and **draw a box** on the image you are looking at, or to **Eyedrop** and click a pixel. The capture lands as a chip in the chat rail's composer: type why, then **Keep** or **Discard** a crop, or **Lock** a color — posted straight to element feedback with no model call. **More options** under the stage opens the fuller form, for keeping as `extract` instead of `inspire`, or **extract as asset**. Cropping and color-picking happen entirely client-side (`<canvas>`), with no LLM coordinate detection, and only on the head version. It also carries a project-level **Surface board** (bound/derived/pending/gap slots, per-gap generate, curation) and **scan triage** (accept/reject checklist over a scan proposal), and the **chat rail** (see below).
+Starts the local **writable authoring studio** — a React/Vite app at `http://localhost:4317` by default — so you can drive the whole loop from a browser instead of the terminal. It **browses** directions (with status, thumbnails, and updated dates), per-direction memory, the global rules panel, briefs, the approved direction, guides, and audits, **and writes**: mint/fork/author directions, edit briefs, add notes, upload moodboards, add global rules / promote a learning, regenerate and approve from the direction workspace, and trigger explore/approve/audit with live job progress. The IA is **single-level and direction-first**: the sidebar lists directions; selecting one opens the `DirectionWorkspace` — a sticky two-line `DirectionChrome` (the direction name and status, with **Generate v1** on a draft; then the Brief | Moodboard | Memory | Setup drawers) over the focus pane: one gallery **stage** (the staged image, a thumbnail row that chooses it, and a Select | Crop | Eyedrop toggle), a swatch-row palette with the dense editable board behind "Edit palette", segmented version pills, and compare. **+ New direction** lives in the sidebar. The **chat rail** is a full-height third column beside the workspace that scrolls on its own; memory stays in the Memory drawer in the main column. It also turns the generated imagery into a **feedback surface**: switch the stage to **Crop** and **draw a box** on the image you are looking at, or to **Eyedrop** and click a pixel. The capture lands as a chip in the chat rail's composer: type why, then **Keep** or **Discard** a crop, or **Lock** a color — posted straight to element feedback with no model call. **More options** under the stage opens the fuller form, for keeping as `extract` instead of `inspire`, or **extract as asset**. Cropping and color-picking happen entirely client-side (`<canvas>`), with no LLM coordinate detection, including an explicitly selected historical foundation or Board revision. It also carries a project-level **Surface board** (bound/derived/pending/gap slots, per-gap generate, curation) and **scan triage** (accept/reject checklist over a scan proposal), and the **chat rail** (see below).
 
 Every write dispatches to the same core functions the CLI uses (no logic duplication) and keeps the same safety discipline (version-safe writes, confirm-on-overwrite, per-direction memory isolation, dry-run without a key).
 
@@ -264,6 +268,8 @@ The studio's chat rail is a fourth front-end over the same core: it **inherits t
 
 Chat is `serve`-only and **never dispatchable via MCP** — the same rule as `serve` itself. It needs `OPENAI_API_KEY` (the rail shows an explicit unavailable state without one), but **every command it calls keeps its existing keyless/dry-run behavior** — the same precedent as `direction brief map`.
 
+Before confirmation, the studio/chat materializes concrete foundation/source ids and the captured Board set. Changing focus or advancing a head while confirmation is open cannot retarget those tokens. Named Boards have independent histories beside the Foundation stage; missing/pending renders are explicit. Board writes use `/api/boards/prepare`, `/api/actions/board-*`, and `DELETE /api/directions/:id/boards/:boardId`, behind the same local guard.
+
 ## Direction Lifecycle
 
 Each direction carries a lifecycle status in `brand/directions/<id>/direction.yaml`:
@@ -291,7 +297,7 @@ When `OPENAI_API_KEY` is not set, all commands still run end-to-end:
 - `brief` writes a complete page brief using the approved direction data; AI expansion is skipped.
 - `audit` captures a screenshot but writes a placeholder audit report instead of an AI critique.
 - Element-feedback capture (crop keep/discard, eyedropper color lock) is entirely client-side + core `fs` writes — it works with no key.
-- `asset extract`/`asset regenerate` write the `ExtractedAsset` record + the composed prompt with **no PNG** when there's no key. `asset pack` is **fully keyless** — it never calls a model — and lists a keyless asset honestly as pending rather than fabricating an image for it.
+- `board create/revise/update` and `asset generate/extract/revise` write the `ExtractedAsset` record + the composed prompt with **no PNG** when there's no key. `asset pack` is **fully keyless** — it never calls a model — and lists a keyless asset honestly as pending rather than fabricating an image for it.
 - `surface fill` records an honest pending fill (no image) with no key; `surface scan`'s floor tier is always keyless, and its optional vision refinement tier degrades to an honestly unrefined proposal with no key.
 
 This ensures you can run the full workflow locally, in CI, or when prototyping without an API key.

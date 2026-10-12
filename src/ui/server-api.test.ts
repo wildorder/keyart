@@ -66,7 +66,15 @@ vi.mock("../brand/core.js", async (importOriginal) => {
   return { ...actual, createBrandCore: vi.fn(actual.createBrandCore) };
 });
 
+// Keep the audit command's file workflow real without visiting an external page.
+vi.mock("../audit/capture-screenshot.js", () => ({
+  captureUrl: vi.fn(async (_url: string, screenshotPath: string) => {
+    await fs.writeFile(screenshotPath, PNG_BYTES);
+  }),
+}));
+
 let tmpDir: string;
+const ownedJobStores: ReturnType<typeof createJobStore>[] = [];
 
 function buildTestConfig(cwd: string): KeyartConfig {
   return {
@@ -217,11 +225,21 @@ function drive(
 }
 
 beforeEach(async () => {
+  ownedJobStores.length = 0;
   tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "keyart-sapi-"));
   vi.mocked(loadConfig).mockResolvedValue(buildTestConfig(tmpDir));
 });
 
 afterEach(async () => {
+  // A 202 response only acknowledges kickoff. Even when an assertion fails,
+  // observe every owned job's terminal state before invalidating its dependencies.
+  // If settlement times out, preserve mocks/fixtures rather than race live work.
+  await vi.waitFor(() => {
+    const running = ownedJobStores.flatMap((store) =>
+      store.list().filter((job) => job.status === "running"),
+    );
+    expect(running, "route jobs must settle before fixture teardown").toEqual([]);
+  }, { timeout: 25_000 });
   vi.restoreAllMocks();
   await fs.rm(tmpDir, { recursive: true, force: true });
 });
@@ -631,6 +649,7 @@ describe("createActionsApi + createJobsApi", () => {
   // the jobs API — exactly as serve.ts wires them.
   function wire(): { actions: ConnectHandler; jobs: ConnectHandler; store: ReturnType<typeof createJobStore> } {
     const store = createJobStore();
+    ownedJobStores.push(store);
     return {
       actions: createActionsApi({ cwd: tmpDir, jobs: store }),
       jobs: createJobsApi({ jobs: store }),
@@ -642,17 +661,15 @@ describe("createActionsApi + createJobsApi", () => {
     jobsApi: ConnectHandler,
     id: string,
   ): Promise<{ status: string; result?: unknown; error?: string }> {
-    for (let i = 0; i < 300; i++) {
+    return vi.waitFor(async () => {
       const req = makeReq({ method: "GET", originalUrl: `/api/jobs/${id}` });
       const res = makeRes();
       await drive(jobsApi, req, res);
       expect(res.statusCode).toBe(200);
       const job = res.json() as { status: string; result?: unknown; error?: string };
-      if (job.status !== "running") return job;
-      // Real-time wait so the job's disk I/O has wall-clock to complete.
-      await new Promise((r) => setTimeout(r, 10));
-    }
-    throw new Error(`job ${id} never settled`);
+      expect(job.status, `job ${id} must settle`).not.toBe("running");
+      return job;
+    }, { timeout: 10_000 });
   }
 
   it("POST /api/actions/explore → 202 + jobId", async () => {
@@ -673,6 +690,7 @@ describe("createActionsApi + createJobsApi", () => {
     const body = res.json() as { jobId: string };
     expect(typeof body.jobId).toBe("string");
     expect(body.jobId.length).toBeGreaterThan(0);
+    expect((await pollJob(jobs, body.jobId)).status).toBe("succeeded");
   });
 
   it("explore job runs end-to-end (dry-run) and writes direction-version artifacts", async () => {
@@ -804,7 +822,7 @@ describe("createActionsApi + createJobsApi", () => {
   });
 
   it("POST /api/actions/regenerate with locks + note → 202 + jobId; missing directionId → 400", async () => {
-    const { actions } = wire();
+    const { actions, jobs } = wire();
 
     // Well-formed kickoff carrying locked roles, an explicit locked color, and a
     // generic feedback note → 202 (the job itself runs async; we assert kickoff).
@@ -824,6 +842,9 @@ describe("createActionsApi + createJobsApi", () => {
     await drive(actions, ok, okRes);
     expect(okRes.statusCode).toBe(202);
     expect(typeof (okRes.json() as { jobId: string }).jobId).toBe("string");
+    // The addressed direction does not exist: failures must settle as well.
+    const { jobId } = okRes.json() as { jobId: string };
+    expect((await pollJob(jobs, jobId)).status).toBe("failed");
 
     // A malformed locked color hex is a hard 400 (validated at parse time).
     const badHex = makeReq({
@@ -846,8 +867,8 @@ describe("createActionsApi + createJobsApi", () => {
     expect(badRes.statusCode).toBe(400);
   });
 
-  it("POST /api/actions/audit → 202 + jobId (not awaited)", async () => {
-    const { actions } = wire();
+  it("POST /api/actions/audit → 202 + jobId, then completes its file workflow", async () => {
+    const { actions, jobs } = wire();
     const req = makeReq({
       method: "POST",
       originalUrl: "/api/actions/audit",
@@ -858,6 +879,8 @@ describe("createActionsApi + createJobsApi", () => {
 
     expect(res.statusCode).toBe(202);
     expect(typeof (res.json() as { jobId: string }).jobId).toBe("string");
+    const { jobId } = res.json() as { jobId: string };
+    expect((await pollJob(jobs, jobId)).status).toBe("succeeded");
   });
 
   it("audit missing url → 400", async () => {
@@ -1383,6 +1406,40 @@ describe("WS-18 — collapsed direction routes", () => {
     return core;
   }
 
+  it("DELETE version requires exact concurrency confirmation, preserves other outputs, and rejects approved foundations", async () => {
+    const core = await seedWithHead("delete-test");
+    const record = await core.get("delete-test");
+    const route = `/api/directions/delete-test/versions/${record.head}`;
+    for (const expectedVersion of [undefined, "1", -1]) {
+      const res = makeRes();
+      await drive(api(), makeReq({ method: "DELETE", originalUrl: route, body: { expectedVersion } }), res);
+      expect(res.statusCode).toBe(400);
+    }
+    const conflict = makeRes();
+    await drive(api(), makeReq({ method: "DELETE", originalUrl: route, body: { expectedVersion: record.version + 1 } }), conflict);
+    expect(conflict.statusCode).toBe(409);
+    const config = buildTestConfig(tmpDir);
+    await createBrandCore(tmpDir, config).setPointer({ directionId: record.id, versionId: record.head! });
+    const approved = makeRes();
+    await drive(api(), makeReq({ method: "DELETE", originalUrl: route, body: { expectedVersion: record.version } }), approved);
+    expect(approved.statusCode).toBe(400);
+    expect(JSON.stringify(approved.json())).toContain("approved");
+    expect((await core.get(record.id)).head).toBe(record.head);
+
+    const second = await seedWithHead("removable");
+    const removable = await second.get("removable");
+    const directionDir = path.join(directionsRoot(tmpDir, config), removable.id);
+    const derived = path.join(directionDir, "extracted-assets", "retained");
+    await fs.mkdir(derived, { recursive: true });
+    await fs.writeFile(path.join(derived, "sentinel.txt"), "unchanged");
+    const deleted = makeRes();
+    await drive(api(), makeReq({ method: "DELETE", originalUrl: `/api/directions/removable/versions/${removable.head}`, body: { expectedVersion: removable.version } }), deleted);
+    expect(deleted.statusCode).toBe(200);
+    expect(deleted.json()).toMatchObject({ deleted: true, versionId: removable.head, head: null });
+    await expect(fs.access(path.join(directionDir, "versions", removable.head!))).rejects.toThrow();
+    expect(await fs.readFile(path.join(derived, "sentinel.txt"), "utf8")).toBe("unchanged");
+  });
+
   it("POST /api/directions/:id/versions appends a NEW version to that direction (201)", async () => {
     const core = await seedWithHead("moody");
     const before = await core.get("moody");
@@ -1410,14 +1467,14 @@ describe("WS-18 — collapsed direction routes", () => {
     expect(after.versions).toContain(body.versionId);
   });
 
-  it("PUT /api/directions/:id edits the head IN PLACE (200): no new version appended", async () => {
+  it("PUT /api/directions/:id appends edited content without rewriting its source", async () => {
     const core = await seedWithHead("moody");
     const before = await core.get("moody");
 
     const req = makeReq({
       method: "PUT",
       originalUrl: "/api/directions/moody",
-      body: { summary: "Edited in place." },
+      body: { summary: "Edited foundation." },
     });
     const res = makeRes();
     await drive(api(), req, res);
@@ -1425,12 +1482,12 @@ describe("WS-18 — collapsed direction routes", () => {
     expect(res.statusCode).toBe(200);
     const body = res.json() as { directionId: string; versionId: string };
     expect(body.directionId).toBe("moody");
-    expect(body.versionId).toBe(before.head);
+    expect(body.versionId).not.toBe(before.head);
     expect(JSON.stringify(body)).not.toContain(`"${LEGACY_ID_KEY}"`);
 
     const after = await core.get("moody");
-    expect(after.head).toBe(before.head);
-    expect(after.versions).toEqual(before.versions);
+    expect(after.head).toBe(body.versionId);
+    expect(after.versions).toEqual([...before.versions, body.versionId]);
   });
 
   it("POST /api/directions/:sourceId/create mints a NEW direction seeded by :sourceId (201)", async () => {
@@ -1641,7 +1698,12 @@ describe("WS-18 — memory + asset lifecycle routes", () => {
         id: "v1",
         createdAt: new Date().toISOString(),
         description: "a mark",
-        source: { directionId: "moody", versionId: "v1", image: "styleTile" },
+        formatVersion: 2,
+        status: "pending",
+        conditioning: "foundation",
+        contextSnapshot: "{}",
+        foundation: { directionId: "moody", versionId: "v1" },
+        provenance: { kind: "generated" },
         files: [],
       },
     );

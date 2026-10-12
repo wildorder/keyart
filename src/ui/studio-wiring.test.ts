@@ -36,6 +36,7 @@ import {
   TIER_C_FLOWS,
   WS18_TIER_A_BUILDERS,
   WS18_TIER_B_BUILDERS,
+  BOARD_TIER_A_BUILDERS,
 } from "../integration/studio-roster.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -48,12 +49,13 @@ const TIER_A_WIRING: Record<string, { file: string; eventAttribute: string }> = 
   divergentExploreRequest: { file: ui("components", "NewDirectionModal.tsx"), eventAttribute: "onClick" },
   approveRequest: { file: ui("components", "DirectionGallery.tsx"), eventAttribute: "onClick" },
   restoreVersionRequest: { file: ui("components", "DirectionGallery.tsx"), eventAttribute: "onClick" },
+  deleteVersionRequest: { file: ui("components", "DirectionGallery.tsx"), eventAttribute: "onClick" },
   forkRequest: { file: ui("components", "NewDirectionModal.tsx"), eventAttribute: "onClick" },
   authoredCreateRequest: { file: ui("components", "CreateDirection.tsx"), eventAttribute: "onSubmit" },
   elementFeedbackRequest: { file: ui("components", "ElementFeedback.tsx"), eventAttribute: "onClick" },
   extractAssetRequest: { file: ui("components", "ElementFeedback.tsx"), eventAttribute: "onClick" },
   exportAssetPackRequest: { file: ui("components", "AssetShelf.tsx"), eventAttribute: "onClick" },
-  assetRegenerateRequest: { file: ui("components", "AssetShelf.tsx"), eventAttribute: "onClick" },
+  assetReviseRequest: { file: ui("components", "AssetShelf.tsx"), eventAttribute: "onClick" },
   assetRetireRequest: { file: ui("components", "AssetShelf.tsx"), eventAttribute: "onClick" },
   moodboardUploadRequest: { file: ui("components", "MoodboardUploader.tsx"), eventAttribute: "onDrop" },
   moodboardAssetRetireRequest: { file: ui("components", "AssetGallery.tsx"), eventAttribute: "onClick" },
@@ -92,11 +94,20 @@ describe("Tier A wiring (JSX-event mode) — WS-18's twenty-eight control-bound 
   }
 });
 
+describe("Board and direct-asset controls", () => {
+  for (const identifier of BOARD_TIER_A_BUILDERS) {
+    it(`${identifier} is wired to a user control`, () => {
+      const file = ui("components", identifier === "assetGenerateRequest" ? "AssetShelf.tsx" : "BoardControls.tsx");
+      const result = checkJsxEventWiringFile(file, "onClick", identifier);
+      expect(result.wired, result.detail).toBe(true);
+    });
+  }
+});
+
 describe("Rail capture intents (JSX-event mode)", () => {
   // A crop or color taken on the gallery stage is resolved from the chat
-  // rail's composer as well as from ElementFeedback. The rail's Keep / Discard
-  // / Lock must post through the same builder, so the element-feedback request
-  // body stays identical whichever surface sends it.
+  // rail's composer as well as from ElementFeedback. The color Lock still
+  // posts through the element-feedback builder; crops attach to chat instead.
   it('ChatRail.tsx: "onClick" resolves to a handler referencing elementFeedbackRequest', () => {
     const result = checkJsxEventWiringFile(
       ui("components", "ChatRail.tsx"),

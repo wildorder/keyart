@@ -32,7 +32,7 @@ Every other command works without it.
 This is the bar every change must clear, in full, before it is reported done:
 
 ```
-npm run build && npx tsc --noEmit && npx vitest run
+npm run build && npm run typecheck && npm test
 ```
 
 A successful file write proves nothing about correctness — run the gate and fix
@@ -88,9 +88,9 @@ output, so without it a source file you delete keeps its compiled artifact in
 `tsc -p tsconfig.build.json` compiles the TypeScript CLI/library sources into
 `dist/`. `tsconfig.build.json` excludes `**/*.test.ts` and
 `src/integration/**` from what gets **emitted** — those files don't belong in
-a published package. `npm run typecheck` (`tsc --noEmit`) is unaffected by
-that exclusion: it still type-checks **everything** through the root
-`tsconfig.json`, tests included.
+a published package. `npm run typecheck` checks CLI/library/tests through the
+root `tsconfig.json` and the React studio through `tsconfig.ui.json`; the emitted
+build's exclusion does not remove tests from these checks.
 
 ## How larger changes land
 
@@ -126,7 +126,7 @@ leak, and npm attaches build provenance automatically. Only the maintainer
 can push tags, and only this repo + that workflow are registered as the
 package's trusted publisher on npmjs.com.
 
-1. `npm run build && npx tsc --noEmit && npx vitest run` — green.
+1. `npm run build && npm run typecheck && npm test` — green.
 2. `npm run test:package` — green.
 3. `npm audit --audit-level=high` — clean.
 4. `npm pack` and inspect the tarball by hand: entrypoints present

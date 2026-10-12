@@ -95,7 +95,7 @@ describe("smoke: full CLI workflow (dry-run, no network)", () => {
     const versionPrefix = `brand/directions/${directionId}/versions/${version.id}`;
     expect(await exists(`${versionPrefix}/direction-version.json`)).toBe(true);
     expect(await exists(`${versionPrefix}/style-tile-prompt.md`)).toBe(true);
-    expect(await exists(`${versionPrefix}/homepage-mockup-prompt.md`)).toBe(true);
+    expect(await exists(`${versionPrefix}/homepage-mockup-prompt.md`)).toBe(false);
 
     // brief-snapshot.md is byte-identical to the direction brief at explore time.
     const snapshotBytes = await fs.readFile(

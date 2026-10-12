@@ -12,9 +12,8 @@ export function formatDate(s: string): string {
  *
  * Deterministic fallback order (only head versions are considered):
  *   1. Head styleTile.
- *   2. Head homepageMockup.
- *   3. First moodboard asset with kind === "image".
- *   4. null — caller renders the initial placeholder; no <img> is mounted.
+ *   2. First moodboard asset with kind === "image".
+ *   3. null — caller renders the initial placeholder; no <img> is mounted.
  *
  * Non-image asset kinds (feedback / inspire / extract) are never returned.
  */
@@ -23,7 +22,6 @@ export function representativeImage(
 ): string | null {
   const head = direction.versions[direction.versions.length - 1];
   if (head?.images?.styleTile) return head.images.styleTile;
-  if (head?.images?.homepageMockup) return head.images.homepageMockup;
 
   const imageAsset = direction.assets?.find(
     (a) => a.kind === "image" && a.path,
@@ -53,6 +51,9 @@ export function lastUpdated(direction: DashboardDirection): string | null {
   }
   for (const mem of direction.memory) {
     candidates.push(mem.date);
+  }
+  for (const board of direction.boards ?? []) {
+    for (const revision of board.revisions) candidates.push(revision.createdAt);
   }
 
   let bestMs = -Infinity;

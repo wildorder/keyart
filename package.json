@@ -1,6 +1,6 @@
 {
   "name": "@wildorder/keyart",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "publishConfig": {
     "access": "public"
   },
@@ -46,10 +46,10 @@
   "scripts": {
     "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
     "build": "npm run clean && vite build && tsc -p tsconfig.build.json",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.ui.json",
     "test": "vitest run",
     "test:integration": "vitest run src/integration/",
-    "prepublishOnly": "npm run build && npm test && npm run test:package",
+    "prepublishOnly": "npm run build && npm run typecheck && npm test && npm run test:package",
     "test:package": "node scripts/smoke-package.mjs"
   },
   "engines": {
@@ -63,7 +63,7 @@
     "dist/ui"
   ],
   "dependencies": {
-    "@modelcontextprotocol/sdk": "1.30.0",
+    "@modelcontextprotocol/sdk": "1.32.1",
     "busboy": "^1.6.0",
     "commander": "^13.1.0",
     "culori": "4.0.2",
@@ -84,6 +84,6 @@
     "react-dom": "^19.2.7",
     "typescript": "^5.8.3",
     "vite": "^6.4.3",
-    "vitest": "^3.1.4"
+    "vitest": "^4.1.11"
   }
 }

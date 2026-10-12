@@ -1,4 +1,5 @@
 import path from "node:path";
+import { mkdir } from "node:fs/promises";
 import { ensureDir, writeJsonFile, writeTextFile } from "../fs.js";
 import { hasApiKey, generateImage, describeImageBrand } from "../openai.js";
 import type { KeyartConfig, DirectionVersion } from "../types.js";
@@ -10,6 +11,8 @@ import type { AssembledContext } from "../brand/assemble-context.js";
 import type { PaletteLock } from "../brand/palette.js";
 import { mintVersionId } from "../direction/store.js";
 import { createDirectionCore } from "../direction/core.js";
+import { assertFoundationId, assertFoundationPath } from "../direction/foundation.js";
+import { CommandError } from "../errors.js";
 
 export interface WriteDirectionVersionResult {
   directionId: string;
@@ -41,9 +44,9 @@ const EMPTY_ASSEMBLED: AssembledContext = {
  * Write exactly ONE version's folder under
  * `directions/<directionId>/versions/<versionId>/`:
  * `direction-version.json` (the {@link DirectionVersion}), the frozen
- * `brief-snapshot.md` / `context-snapshot.md` projections, both prompt `.md`
- * files, and — gated on a key + a configured image model — the
- * reference-conditioned style tile + homepage images, after which the UNLOCKED
+ * `brief-snapshot.md` / `context-snapshot.md` projections, the tile prompt,
+ * and — gated on a key + a configured image model — the
+ * reference-conditioned style tile, after which the UNLOCKED
  * tokens are RE-EXTRACTED from the rendered tile (the inverted spine, preserved
  * verbatim from the old run writer). Finally advances the direction record's
  * `versions[]`/`head` to this version (`DirectionCore.appendVersion`) — the
@@ -55,16 +58,14 @@ const EMPTY_ASSEMBLED: AssembledContext = {
  * the writer mints one (keeping id assignment caller-driven).
  *
  * **No-generation contract (`skipImages: true`):** when set, this writer is
- * PURELY a persistence step — it writes json + both snapshot `.md` files + both
- * prompt `.md` files + advances the index, but NEVER reads the model, never
+ * PURELY a persistence step — it writes json + both snapshot `.md` files + the
+ * tile prompt + advances the index, but NEVER reads the model, never
  * calls `hasApiKey()` for generation, and never re-extracts tokens. The caller
  * supplies a complete `version` (including `version.tokens`). This contract is
- * used by TWO paths:
- * 1. `runSaveVariant` — appending a new version to an EXISTING direction (the
- *    carry-forward tokens come from the user's edited version).
- * 2. `createAuthoredDirection` — writing v1 of a BRAND-NEW direction from
+ * used by `createAuthoredDirection` — writing v1 of a BRAND-NEW direction from
  *    host-agent-authored content (the caller supplies engine-seeded tokens built
  *    deterministically from the brief's soft intent + memory color-locks).
+ * Saving an edited look does not use this bypass: it renders a new foundation.
  *
  * A skipped image never throws; its reason is collected. Dry-run (no key / no
  * image) ⇒ no tile ⇒ no extraction ⇒ byte-identical to a lockless run.
@@ -83,7 +84,7 @@ export async function writeDirectionVersion(opts: {
    * by the art-direction compiler. When provided, `composeArtDirection` is called
    * exactly once per generated prompt to inject the MUST/PREFER/AVOID tail + soft
    * color guidance. Absent ⇒ empty context (byte-identical no-directive path,
-   * used by `skipImages: true` callers such as `runSaveVariant`).
+   * used by authored `skipImages: true` callers).
    */
   assembled?: AssembledContext;
   /**
@@ -104,8 +105,7 @@ export async function writeDirectionVersion(opts: {
   extractionLocks?: PaletteLock[];
   /**
    * Skip model image generation — caller supplies a complete `version` (including
-   * `version.tokens`); nothing is generated or extracted. Used by BOTH
-   * `runSaveVariant` (append to an existing direction) and
+   * `version.tokens`); nothing is generated or extracted. Used by
    * `createAuthoredDirection` (a NEW direction's v1 with engine seed tokens).
    * See the function-level JSDoc for the full no-generation contract.
    */
@@ -126,16 +126,37 @@ export async function writeDirectionVersion(opts: {
   let extracted = false;
   const rel = (abs: string): string => relTo(cwd, abs);
 
-  const versionsDir = path.join(directionsDir, directionId, "versions");
+  assertFoundationId(directionId, "direction");
+  const owner = await createDirectionCore(cwd, config).get(directionId);
+  if (owner.id !== directionId) throw new CommandError("Foundation direction identity does not match its owning folder.");
+  if (version.id && (owner.versions.includes(version.id) || Object.hasOwn(owner.versionOrdinals ?? {}, version.id))) {
+    throw new CommandError(`Foundation ${directionId}@${version.id} already exists or was deleted. Revise to append a new version.`);
+  }
+  const directionDir = path.join(directionsDir, directionId);
+  await assertFoundationPath(directionsDir, directionDir);
+  const versionsDir = path.join(directionDir, "versions");
   await ensureDir(versionsDir);
+  await assertFoundationPath(directionDir, versionsDir);
 
   // Caller-driven id: honor a pre-minted version.id, else mint a collision-safe
   // one. Either way the version folder is never reused.
-  const versionId = version.id || (await mintVersionId(versionsDir));
+  const reservedIds = new Set([...owner.versions, ...Object.keys(owner.versionOrdinals ?? {})]);
+  let versionId = version.id || (await mintVersionId(versionsDir, reservedIds));
+  assertFoundationId(versionId, "version");
+  // Exclusive reservation closes the mint/check race and protects historical bytes.
+  for (;;) {
+    try {
+      await mkdir(path.join(versionsDir, versionId));
+      break;
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code !== "EEXIST") throw err;
+      if (version.id) throw new CommandError(`Foundation ${directionId}@${versionId} already exists. Revise to append a new version.`);
+      versionId = await mintVersionId(versionsDir, reservedIds);
+    }
+  }
   version.id = versionId;
 
   const versionDir = path.join(versionsDir, versionId);
-  await ensureDir(versionDir);
 
   // INVERTED SPINE (SC-03): the art-direction compiler is called EXACTLY ONCE
   // per generated prompt. All visual directives (MUST/PREFER/AVOID), the live
@@ -156,7 +177,6 @@ export async function writeDirectionVersion(opts: {
     return out;
   };
   const styleTilePrompt = decorate(version.styleTilePrompt);
-  const homepageMockupPrompt = decorate(version.homepageMockupPrompt);
 
   // direction-version.json — written FIRST so a token-less/dry-run version still
   // has it; rewritten AFTER extraction so the persisted tokens ARE the image.
@@ -177,10 +197,6 @@ export async function writeDirectionVersion(opts: {
   const styleTilePromptPath = path.join(versionDir, "style-tile-prompt.md");
   await writeTextFile(styleTilePromptPath, styleTilePrompt + "\n");
   filesWritten.push(rel(styleTilePromptPath));
-
-  const homepagePromptPath = path.join(versionDir, "homepage-mockup-prompt.md");
-  await writeTextFile(homepagePromptPath, homepageMockupPrompt + "\n");
-  filesWritten.push(rel(homepagePromptPath));
 
   // Optional image generation — conditioned on the concept's reference images. A
   // skip must never fail the run: generateImage returns a typed result instead
@@ -230,21 +246,6 @@ export async function writeDirectionVersion(opts: {
       );
     }
 
-    const homepagePng = path.join(versionDir, "homepage-mockup.png");
-    const homeRes = await generateImage({
-      model: config.models.image,
-      prompt: homepageMockupPrompt,
-      outPath: homepagePng,
-      referenceImagePaths: opts.referenceImagePaths,
-    });
-    if (homeRes.written) {
-      filesWritten.push(rel(homepagePng));
-    } else if (homeRes.skippedReason) {
-      imageSkips.push(homeRes.skippedReason);
-      console.warn(
-        `Warning: image generation skipped for ${directionId}/${versionId}/homepage-mockup.png: ${homeRes.skippedReason}`,
-      );
-    }
   }
 
   // Advance the direction record's versions[]/head to this version. The record

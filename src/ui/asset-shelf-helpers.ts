@@ -8,13 +8,7 @@
 import type {
   DashboardDirection,
   DashboardExtractedAsset,
-  DirectionImages,
 } from "./types.js";
-
-/** The logical source-image name the extract action sends (mirrors the
- * WS-01 AssetVersion.source.image enum). `styleBoardSvg` (the deterministic
- * board) is never an extract source. */
-export type AssetSourceImage = "styleTile" | "homepageMockup" | "moodboard";
 
 /**
  * The focused direction's shelf items, newest first by `createdAt` (stable:
@@ -105,25 +99,4 @@ export function assetImageStatusLabel(status: AssetImageStatus): string {
     case "pending":
       return "pending — no image";
   }
-}
-
-/**
- * Map an open feedback-target path to the logical source-image name:
- * `images.styleTile` → `"styleTile"`, `images.homepageMockup` →
- * `"homepageMockup"`, `images.styleBoard` → `"moodboard"` (the evocative
- * board IS the moodboard-tier image). Unknown path or absent images → null
- * (the caller then omits the `image` field and the server applies its
- * default).
- */
-export function sourceImageNameFor(
-  images: DirectionImages | undefined,
-  path: string,
-): AssetSourceImage | null {
-  if (!images) return null;
-  if (images.styleTile !== undefined && images.styleTile === path) return "styleTile";
-  if (images.homepageMockup !== undefined && images.homepageMockup === path) {
-    return "homepageMockup";
-  }
-  if (images.styleBoard !== undefined && images.styleBoard === path) return "moodboard";
-  return null;
 }

@@ -1,4 +1,5 @@
 import path from "node:path";
+import { runDeleteDirectionVersion } from "../direction/delete-version.js";
 import fs from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { CommandError } from "../errors.js";
@@ -404,7 +405,17 @@ export const DIRECTION_VERBS = [
   "show",
   "fork",
   "create",
+  "revise",
+  "delete-version",
 ] as const;
+
+/** Explicit permanent-delete entry shared by CLI and registry dispatch. */
+export async function runDirectionDeleteVersion(opts: { cwd: string; directionId: string; versionId?: string; confirmed?: boolean; expectedVersion?: number }) {
+  if (!opts.versionId || !opts.confirmed) throw new CommandError("Permanent deletion requires: direction delete-version <id> --version <exact-version-id> --yes. Assets and Boards are retained; approved versions cannot be deleted.");
+  const result = await runDeleteDirectionVersion({ ...opts, versionId: opts.versionId });
+  console.log(`Permanently deleted foundation ${opts.directionId}@${opts.versionId}. Assets and Boards were not changed.`);
+  return result;
+}
 
 /** Read-only `direction status` projection (WS-05). */
 export interface DirectionStatusProjection {
@@ -614,6 +625,8 @@ export async function runDirection(opts: {
   force?: boolean;
   channel?: string;
   polarity?: string;
+  /** Stored crop thumbnail accompanying an attributed feedback entry. */
+  asset?: string;
   // NEW for the `brief` verb (deterministic, keyless field writes):
   subverb?: string; // "show" | "set" | "patch" | "map"
   field?: string; // for `set`
@@ -671,6 +684,9 @@ export async function runDirection(opts: {
     throw new CommandError(
       "--body is only valid with: direction feedback <id> --body <text>, or direction memory edit <id> <entryId> --body <text>",
     );
+  }
+  if (opts.asset !== undefined && verb !== "feedback") {
+    throw new CommandError("--asset is only valid with direction feedback.");
   }
   if (opts.kind !== undefined && verb !== "feedback") {
     throw new CommandError(
@@ -813,6 +829,7 @@ export async function runDirection(opts: {
         body: opts.body,
         author,
         source,
+        ...(opts.asset ? { asset: opts.asset } : {}),
         ...(channel ? { channel } : {}),
         ...(polarity ? { polarity } : {}),
       };

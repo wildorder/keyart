@@ -103,7 +103,7 @@ function deriveLeaf(spec: LeafSpec): VerbLeaf {
 // The `show`/`status`/`fork`/`archive`/`reject`/`park`/`revive` verbs
 // deliberately get NO catalog leaves — they stay MCP-dispatchable through
 // `keyart_brand` via the grown `direction` meta, and adding leaves would
-// break the 27-leaf contract downstream consumers pin.
+// break the derived leaf contract downstream consumers pin.
 // ---------------------------------------------------------------------------
 
 const LEAVES: VerbLeaf[] = [
@@ -122,7 +122,7 @@ const LEAVES: VerbLeaf[] = [
     toolName: "regenerate",
     command: "regenerate",
     positionals: getCommand("regenerate")!.args,
-    flagNames: ["--tweak"],
+    flagNames: ["--tweak", "--version", "--reference"],
     mutates: "write",
     contextBinding: {
       directionSlot: { kind: "positional", name: "directionId" },
@@ -185,6 +185,21 @@ const LEAVES: VerbLeaf[] = [
     contextBinding: {},
   }),
   deriveLeaf({
+    toolName: "direction_revise",
+    command: "direction",
+    verb: "revise",
+    positionals: [{ name: "id", required: true, description: "Direction whose foundation to revise." }],
+    flagNames: ["--version", "--tweak", "--reference"],
+    mutates: "write",
+    contextBinding: { directionSlot: { kind: "positional", name: "id" } },
+  }),
+  deriveLeaf({
+    toolName: "direction_delete_version", command: "direction", verb: "delete-version",
+    positionals: [{ name: "id", required: true, description: "Direction owning the exact foundation to permanently delete." }],
+    flagNames: ["--version", "--expected-version", "--yes"], mutates: "destructive",
+    contextBinding: { directionSlot: { kind: "positional", name: "id" } },
+  }),
+  deriveLeaf({
     toolName: "direction_list",
     command: "direction",
     verb: "list",
@@ -200,7 +215,7 @@ const LEAVES: VerbLeaf[] = [
     positionals: [
       { name: "id", required: true, description: "The direction to record feedback on." },
     ],
-    flagNames: ["--body", "--kind", "--author", "--channel", "--polarity"],
+    flagNames: ["--body", "--kind", "--author", "--channel", "--polarity", "--asset"],
     mutates: "write",
     contextBinding: {
       directionSlot: { kind: "positional", name: "id" },
@@ -408,7 +423,7 @@ const LEAVES: VerbLeaf[] = [
     command: "asset",
     verb: "extract",
     positionals: [],
-    flagNames: ["--direction", "--describe", "--image", "--version", "--crop", "--name"],
+    flagNames: ["--direction", "--describe", "--image", "--version", "--board", "--revision", "--crop", "--name"],
     mutates: "write",
     contextBinding: {
       directionSlot: { kind: "flag", name: "--direction" },
@@ -421,7 +436,7 @@ const LEAVES: VerbLeaf[] = [
     positionals: [
       { name: "assetId", required: true, description: "The extracted-asset id to regenerate (e.g. yak-mascot)." },
     ],
-    flagNames: ["--tweak", "--remember", "--author"],
+    flagNames: ["--direction", "--revision", "--version", "--tweak", "--remember", "--author"],
     mutates: "write",
     contextBinding: {},
   }),
@@ -458,6 +473,29 @@ const LEAVES: VerbLeaf[] = [
       directionSlot: { kind: "flag", name: "--direction" },
     },
   }),
+  deriveLeaf({
+    toolName: "asset_generate", command: "asset", verb: "generate", positionals: [],
+    flagNames: ["--direction", "--version", "--name", "--describe"], mutates: "write",
+    contextBinding: { directionSlot: { kind: "flag", name: "--direction" } },
+  }),
+  deriveLeaf({
+    toolName: "asset_revise", command: "asset", verb: "revise",
+    positionals: [{ name: "assetId", required: true, description: "Asset whose selected version to revise." }],
+    flagNames: ["--direction", "--revision", "--version", "--tweak", "--remember", "--author"], mutates: "write",
+    contextBinding: { directionSlot: { kind: "flag", name: "--direction" } },
+  }),
+  ...(["create", "revise", "update", "list", "show", "retire"] as const).map((verb) => deriveLeaf({
+    toolName: `board_${verb}`, command: "board", verb,
+    positionals: ["revise", "show", "retire"].includes(verb) ? [{ name: "boardId", required: true, description: "The Board identity." }] : [],
+    flagNames: ({
+      create: ["--direction", "--version", "--name", "--describe"],
+      revise: ["--direction", "--version", "--revision", "--tweak", "--instruction-version"],
+      update: ["--direction", "--version", "--board", "--resume", "--captured"],
+      list: ["--direction", "--include-retired"], show: ["--direction", "--revision"], retire: ["--direction"],
+    })[verb],
+    mutates: verb === "list" || verb === "show" ? "none" : verb === "retire" ? "destructive" : "write",
+    contextBinding: { directionSlot: { kind: "flag", name: "--direction" } },
+  })),
 ];
 
 Object.freeze(LEAVES);

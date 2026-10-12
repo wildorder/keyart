@@ -5,6 +5,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 vi.mock("./commands/explore.js", () => ({ runExplore: vi.fn().mockResolvedValue({}) }));
 vi.mock("./commands/regenerate-visuals.js", () => ({
   runRegenerateVisuals: vi.fn().mockResolvedValue({}),
+  runReviseDirection: vi.fn().mockResolvedValue({}),
 }));
 vi.mock("./commands/direction.js", async (importOriginal) => {
   const actual =
@@ -30,7 +31,7 @@ vi.mock("./commands/surface.js", async (importOriginal) => {
 // calls program.parse()), so we can drive it with custom args here.
 import { program } from "./cli.js";
 import { runExplore } from "./commands/explore.js";
-import { runRegenerateVisuals } from "./commands/regenerate-visuals.js";
+import { runRegenerateVisuals, runReviseDirection } from "./commands/regenerate-visuals.js";
 import {
   runDirection,
   runCreateDirection,
@@ -198,7 +199,7 @@ describe("cli regenerate wiring", () => {
       }),
     );
     // The `regenerate` addressing is `<directionId>` only — no versionId/runId.
-    expect(mockRegenerate.mock.calls[0][0]).not.toHaveProperty("versionId");
+    expect(mockRegenerate.mock.calls[0][0].versionId).toBeUndefined();
   });
 
   it("defaults --tweak to undefined when omitted", async () => {

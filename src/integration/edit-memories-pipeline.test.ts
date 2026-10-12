@@ -178,7 +178,7 @@ async function headVersionDir(cwd: string, directionId: string): Promise<string>
 async function headPromptFiles(cwd: string, directionId: string): Promise<string[]> {
   const verDir = await headVersionDir(cwd, directionId);
   const parts: string[] = [];
-  for (const f of ["style-tile-prompt.md", "homepage-mockup-prompt.md"]) {
+  for (const f of ["style-tile-prompt.md"]) {
     parts.push(await fs.readFile(path.join(verDir, f), "utf-8"));
   }
   return parts;

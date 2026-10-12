@@ -57,7 +57,6 @@ function prose(d: DirectionVersion): Record<string, unknown> {
     summary: d.summary,
     positioning: d.positioning,
     character: d.character,
-    homepageMockupPrompt: d.homepageMockupPrompt,
     styleTilePrompt: d.styleTilePrompt,
     copyExamples: d.copyExamples,
     usage: d.usage,
@@ -240,7 +239,7 @@ describe("runRegenerateVisuals — token-aware regenerate (WS-04)", () => {
     for (const p of result.filesWritten) expect(p.endsWith(".png")).toBe(false);
   });
 
-  it("regenerates the style-tile, homepage, AND evocative-board image prompts freely — no hard color/type lock (SC-03)", async () => {
+  it("revises only the foundation tile freely — no hard color/type lock (SC-03)", async () => {
     await scaffold();
     process.env.OPENAI_API_KEY = "test-key";
     const genSpy = vi
@@ -255,7 +254,7 @@ describe("runRegenerateVisuals — token-aware regenerate (WS-04)", () => {
     // Three image generations: style-tile, homepage, evocative board. Per the
     // inverted spine each prompt carries the CONTENT LOCK but NO hard color/type
     // lock — the image renders freely and tokens are read back afterward.
-    expect(genSpy).toHaveBeenCalledTimes(3);
+    expect(genSpy).toHaveBeenCalledTimes(1);
     for (const call of genSpy.mock.calls) {
       const prompt = (call[0] as { prompt: string }).prompt;
       expect(prompt).toContain("CONTENT LOCK");
@@ -264,7 +263,7 @@ describe("runRegenerateVisuals — token-aware regenerate (WS-04)", () => {
     }
   });
 
-  it("generates the evocative style-board.png in the version folder", async () => {
+  it("does not generate a hidden Board when revising the foundation", async () => {
     await scaffold();
     process.env.OPENAI_API_KEY = "test-key";
     const genSpy = vi
@@ -279,15 +278,13 @@ describe("runRegenerateVisuals — token-aware regenerate (WS-04)", () => {
     const rel = (abs: string): string =>
       path.relative(tmpDir, abs).split(path.sep).join("/");
     const boardPng = rel(path.join(await versionFolder(), "style-board.png"));
-    expect(result.filesWritten).toContain(boardPng);
+    expect(result.filesWritten).not.toContain(boardPng);
 
     // One generateImage call targeted style-board.png, reference-capable.
     const boardCall = genSpy.mock.calls.find((c) =>
       (c[0] as { outPath: string }).outPath.endsWith("style-board.png"),
     );
-    expect(boardCall).toBeDefined();
-    expect((boardCall![0] as { referenceImagePaths?: string[] }).referenceImagePaths)
-      .toBeDefined();
+    expect(boardCall).toBeUndefined();
   });
 
   it("re-extracts tokens into the NEW version, leaving the prior version + prose/copy + memory untouched (SC-06/SC-07)", async () => {
@@ -326,6 +323,8 @@ describe("runRegenerateVisuals — token-aware regenerate (WS-04)", () => {
       "#202020",
     );
     expect(head.tokens).not.toEqual(before.tokens);
+    const specimen = await fs.readFile(path.join(await versionFolder(), "style-board.md"), "utf8");
+    for (const token of head.tokens!.palette) expect(specimen).toContain(token.hex);
 
     // A plain regenerate writes no direction memory.
     const memoryAfter = await fs.readFile(memoryYaml, "utf-8");
@@ -347,7 +346,7 @@ describe("runRegenerateVisuals — token-aware regenerate (WS-04)", () => {
     });
 
     // Skip reason collected once per gated image (3), never thrown.
-    expect(result.imageSkips.filter((s) => s === "capability boom")).toHaveLength(3);
+    expect(result.imageSkips.filter((s) => s === "capability boom")).toHaveLength(1);
     // The deterministic board is still produced.
     expect(result.boardWritten).toBe(true);
     expect(
@@ -443,7 +442,7 @@ describe("runRegenerateVisuals — token-aware regenerate (WS-04)", () => {
       const out = (c[0] as { outPath: string }).outPath;
       return out.endsWith("style-tile.png") || out.endsWith("homepage-mockup.png");
     });
-    expect(guided).toHaveLength(2);
+    expect(guided).toHaveLength(1);
     for (const call of guided) {
       const prompt = (call[0] as { prompt: string }).prompt;
       expect(prompt).toContain("COLOR GUIDANCE (soft)");
@@ -475,7 +474,7 @@ describe("runRegenerateVisuals — token-aware regenerate (WS-04)", () => {
     });
 
     // The note reached every image prompt this pass…
-    expect(genSpy).toHaveBeenCalledTimes(3);
+    expect(genSpy).toHaveBeenCalledTimes(1);
     for (const call of genSpy.mock.calls) {
       expect((call[0] as { prompt: string }).prompt).toContain(
         "warmer, more editorial",
@@ -613,6 +612,29 @@ describe("runRegenerateVisuals — feedback appends a version (WS-03)", () => {
 });
 
 describe("runRegenerateVisuals — negatives & kept-crop biased regeneration (WS-02)", () => {
+  it("uses an explicit one-shot crop without adding it to moodboard or memory", async () => {
+    await scaffold();
+    const cropPath = path.join(tmpDir, "crop.png");
+    await fs.writeFile(cropPath, "png-bytes");
+    const core = createDirectionCore(tmpDir, buildTestConfig(tmpDir));
+    const before = await directionRecord(DIRECTION_ID);
+    const memory = await core.memoryEntries(DIRECTION_ID);
+    process.env.OPENAI_API_KEY = "test-key";
+    const generate = vi.spyOn(openai, "generateImage").mockResolvedValue({ written: true, dryRun: false });
+    await runRegenerateVisuals({ cwd: tmpDir, directionId: DIRECTION_ID, referencePath: "crop.png" });
+    expect(generate.mock.calls[0][0].referenceImagePaths).toContain(cropPath);
+    expect((await directionRecord(DIRECTION_ID)).assets).toEqual(before.assets);
+    expect(await core.memoryEntries(DIRECTION_ID)).toEqual(memory);
+  });
+
+  it("rejects a one-shot image outside the project before appending a version", async () => {
+    await scaffold();
+    const before = await directionRecord(DIRECTION_ID);
+    await expect(runRegenerateVisuals({ cwd: tmpDir, directionId: DIRECTION_ID, referencePath: os.tmpdir() }))
+      .rejects.toThrow("escapes");
+    expect(await directionRecord(DIRECTION_ID)).toEqual(before);
+  });
+
   /** Write a placeholder image file under the direction and register it as an AssetRef. */
   async function addImageAsset(
     relPath: string,
@@ -661,7 +683,7 @@ describe("runRegenerateVisuals — negatives & kept-crop biased regeneration (WS
     expect(refs).not.toContain(extractAbs); // extract crop is NOT an image source
   });
 
-  it("injects the direction's discard notes as an AVOID block into all three prompts (SC-06)", async () => {
+  it("injects the direction's discard notes as an AVOID block into the foundation prompt (SC-06)", async () => {
     await scaffold();
     // A discard feedback entry (feedback + `asset` thumbnail) is a negative.
     const core = createDirectionCore(tmpDir, buildTestConfig(tmpDir));
@@ -683,7 +705,7 @@ describe("runRegenerateVisuals — negatives & kept-crop biased regeneration (WS
     });
 
     // All three image prompts carry the AVOID block + the discard body.
-    expect(genSpy).toHaveBeenCalledTimes(3);
+    expect(genSpy).toHaveBeenCalledTimes(1);
     for (const call of genSpy.mock.calls) {
       const prompt = (call[0] as { prompt: string }).prompt;
       expect(prompt).toContain("AVOID (do not use):");
@@ -734,7 +756,7 @@ describe("runRegenerateVisuals — negatives & kept-crop biased regeneration (WS
       directionId: DIRECTION_ID,
     });
 
-    expect(genSpy).toHaveBeenCalledTimes(3);
+    expect(genSpy).toHaveBeenCalledTimes(1);
     for (const call of genSpy.mock.calls) {
       const arg = call[0] as { prompt: string; referenceImagePaths?: string[] };
       expect(arg.prompt).not.toContain("COLOR & TYPE LOCK"); // no hard lock (SC-03)
@@ -766,7 +788,7 @@ describe("runRegenerateVisuals — negatives & kept-crop biased regeneration (WS
     });
 
     // Every generated image prompt must carry the CURRENT headline.
-    expect(genSpy).toHaveBeenCalledTimes(3);
+    expect(genSpy).toHaveBeenCalledTimes(1);
     for (const call of genSpy.mock.calls) {
       const arg = call[0] as { prompt: string };
       expect(arg.prompt).toContain("CONTENT LOCK");
@@ -801,7 +823,7 @@ describe("runRegenerateVisuals — negatives & kept-crop biased regeneration (WS
   });
 });
 
-describe("runRegenerateVisuals — WS-03 art-direction compiler wired into all three prompts", () => {
+describe("runRegenerateVisuals — WS-03 art-direction compiler wired into the foundation prompt", () => {
   /** Add a visual hard rule to the global brand before scaffolding. */
   async function addHardRule(text: string): Promise<void> {
     const brand = createBrandCore(tmpDir, buildTestConfig(tmpDir));
@@ -843,7 +865,7 @@ describe("runRegenerateVisuals — WS-03 art-direction compiler wired into all t
     });
   }
 
-  it("global hard rule + visual-avoid decision land in MUST and AVOID on all three prompts (SC-03)", async () => {
+  it("global hard rule + visual-avoid decision land in MUST and AVOID on the foundation prompt (SC-03)", async () => {
     await addHardRule("Never use a fist-in-the-air icon");
     await scaffold();
     await addVisualAvoidDecision(DIRECTION_ID, "avoid aggressive diagonal layouts");
@@ -860,7 +882,7 @@ describe("runRegenerateVisuals — WS-03 art-direction compiler wired into all t
     });
 
     // All three image prompts carry the MUST block with the hard prohibition.
-    expect(genSpy).toHaveBeenCalledTimes(3);
+    expect(genSpy).toHaveBeenCalledTimes(1);
     for (const call of genSpy.mock.calls) {
       const prompt = (call[0] as { prompt: string }).prompt;
       expect(prompt).toContain("MUST (non-negotiable — always obey):");
@@ -872,15 +894,14 @@ describe("runRegenerateVisuals — WS-03 art-direction compiler wired into all t
     // The written prompt .md files (style-tile + homepage) also carry the MUST block.
     const folder = await versionFolder();
     const styleMd = await fs.readFile(path.join(folder, "style-tile-prompt.md"), "utf-8");
-    const homeMd = await fs.readFile(path.join(folder, "homepage-mockup-prompt.md"), "utf-8");
-    for (const md of [styleMd, homeMd]) {
+    for (const md of [styleMd]) {
       expect(md).toContain("MUST (non-negotiable — always obey):");
       expect(md).toContain("Never use a fist-in-the-air icon");
       expect(md).toContain("avoid aggressive diagonal layouts");
     }
   });
 
-  it("positive visual directive lands in the PREFER/DO block on all three prompts (SC-04)", async () => {
+  it("positive visual directive lands in the PREFER/DO block on the foundation prompt (SC-04)", async () => {
     await scaffold();
     await addVisualPreferDecision(DIRECTION_ID, "prefer warm editorial photography");
 
@@ -895,7 +916,7 @@ describe("runRegenerateVisuals — WS-03 art-direction compiler wired into all t
       directionId: DIRECTION_ID,
     });
 
-    expect(genSpy).toHaveBeenCalledTimes(3);
+    expect(genSpy).toHaveBeenCalledTimes(1);
     for (const call of genSpy.mock.calls) {
       const prompt = (call[0] as { prompt: string }).prompt;
       expect(prompt).toContain("PREFER (do):");
@@ -1019,14 +1040,11 @@ describe("runRegenerateVisuals — WS-04 contradiction detection", () => {
     // The prompt files contain the tweak (it was NOT removed — advisory only).
     const folder = await versionFolder();
     const styleMd = await fs.readFile(path.join(folder, "style-tile-prompt.md"), "utf-8");
-    const homeMd = await fs.readFile(path.join(folder, "homepage-mockup-prompt.md"), "utf-8");
     expect(styleMd).toContain("make it pure black");
-    expect(homeMd).toContain("make it pure black");
 
     // The prompt files do NOT contain detection-system content (advisory stays off the prompt).
     expect(styleMd).not.toContain("contradictionReport");
     expect(styleMd).not.toContain("hard-rule-conflict");
-    expect(homeMd).not.toContain("hard-rule-conflict");
 
     // Tokens are present (re-extracted as normal).
     expect(result.boardWritten).toBe(true);
@@ -1064,7 +1082,7 @@ describe("runRegenerateVisuals — WS-04 contradiction detection", () => {
     };
 
     // Mock openai.ts detectContradictionsLLM to return a live-vs-memory case.
-    vi.spyOn(openai, "detectContradictionsLLM" as never).mockResolvedValue({
+    vi.spyOn(openai, "detectContradictionsLLM").mockResolvedValue({
       contradictions: [liveVsMemoryCase],
       dryRun: false,
     } as never);
@@ -1145,18 +1163,12 @@ describe("runRegenerateVisuals — direction isolation (WS-03 SC-05/SC-11)", () 
       path.join(bFolder, "style-tile-prompt.md"),
       "utf-8",
     );
-    const bHomeMd = await fs.readFile(
-      path.join(bFolder, "homepage-mockup-prompt.md"),
-      "utf-8",
-    );
 
     // A's discard body is absent from B's prompt files
     expect(bStyleMd).not.toContain("garish neon");
-    expect(bHomeMd).not.toContain("garish neon");
 
     // A's color-lock is absent from B's prompt files
     expect(bStyleMd).not.toContain("#ff0000");
-    expect(bHomeMd).not.toContain("#ff0000");
 
     // A's kept-crop is absent from B's generateImage referenceImagePaths
     for (const call of genSpy.mock.calls) {
@@ -1189,6 +1201,8 @@ describe("runRegenerateVisuals — direction isolation (WS-03 SC-05/SC-11)", () 
       .mockResolvedValue({ written: true, dryRun: false });
     stubExtraction([]);
 
+    const extractionLocks: PaletteLock[][] = [];
+    stubExtraction(extractionLocks);
     // Regenerate direction A — A's own gestures must appear
     await runRegenerateVisuals({
       cwd: tmpDir,
@@ -1200,17 +1214,13 @@ describe("runRegenerateVisuals — direction isolation (WS-03 SC-05/SC-11)", () 
       path.join(aFolder, "style-tile-prompt.md"),
       "utf-8",
     );
-    const aHomeMd = await fs.readFile(
-      path.join(aFolder, "homepage-mockup-prompt.md"),
-      "utf-8",
-    );
 
     // A's discard body IS in A's prompt files (AVOID tier)
     expect(aStyleMd).toContain("garish neon");
-    expect(aHomeMd).toContain("garish neon");
 
     // A's color-lock IS in A's prompt files
     expect(aStyleMd).toContain("#ff0000");
+    expect(extractionLocks.flat()).toContainEqual({ hex: "#ff0000" });
 
     // A's kept-crop IS in A's referenceImagePaths
     const styleTileCall = genSpy.mock.calls.find((c) =>
@@ -1248,7 +1258,7 @@ describe("runRegenerateVisuals — direction isolation (WS-03 SC-05/SC-11)", () 
     expect(bEntries.some((e) => e.source === "regenerate")).toBe(false);
   });
 
-  it("dry-run parity (SC-11) — no key, direction assembly writes both prompt files and never throws", async () => {
+  it("dry-run parity (SC-11) — no key, direction assembly writes the foundation prompt file and never throws", async () => {
     await scaffold();
 
     // No key (beforeEach deletes it)
@@ -1263,12 +1273,7 @@ describe("runRegenerateVisuals — direction isolation (WS-03 SC-05/SC-11)", () 
       path.join(folder, "style-tile-prompt.md"),
       "utf-8",
     );
-    const homeMd = await fs.readFile(
-      path.join(folder, "homepage-mockup-prompt.md"),
-      "utf-8",
-    );
     expect(styleMd.length).toBeGreaterThan(0);
-    expect(homeMd.length).toBeGreaterThan(0);
     expect(result.boardWritten).toBe(true);
     for (const p of result.filesWritten) expect(p.endsWith(".png")).toBe(false);
   });

@@ -1,229 +1,86 @@
-/**
- * The image column of the direction focus pane, as ONE stage.
- *
- * There is a single set of images here and one place to work on them: the staged
- * image fills the stage, the thumbnail row below it selects which image is
- * staged, and the stage header carries the Select / Crop / Eyedrop mode toggle.
- * Dragging a crop or picking a color happens directly on the staged image — the
- * previous design opened a SEPARATE panel that re-rendered the same image at a
- * different size, so the user picked an image twice and worked on a duplicate.
- *
- * Capture is HEAD-ONLY: a historical version stages in `select` mode with no
- * toggle, since keep/discard/extract all act on the head. Coordinate and pixel
- * work lives in {@link StageImage} + `../crop-math`; the pending capture is
- * resolved by {@link ElementFeedback}, which is now a panel over a capture this
- * component already produced rather than an image surface of its own.
- */
-import React, { useEffect, useState } from "react";
-import type { DashboardVersion } from "../types";
+import React, { useEffect, useState, type JSX } from "react";
+import type { DashboardVersion, DashboardBoard, VisualSource, VisualFocus } from "../types";
 import { AssetImage } from "./AssetImage";
 import { ElementFeedback } from "./ElementFeedback";
 import { StageImage } from "./StageImage";
-import {
-  STAGE_MODES,
-  isCaptureMode,
-  stageHint,
-  stageModeLabel,
-  type StageMode,
-} from "../stage-capture.js";
-import { galleryImagesOf, heroImageOf, stageImagesOf } from "../direction-hero-images";
-import { sourceImageNameFor } from "../asset-shelf-helpers.js";
+import { BoardControls } from "./BoardControls";
+import { STAGE_MODES, isCaptureMode, stageHint, stageModeLabel, type StageMode } from "../stage-capture.js";
+import { boardStageItems, foundationLabel } from "../board-view.js";
 import { usePendingCapture } from "../pending-capture.js";
 
 interface DirectionHeroProps {
-  version: DashboardVersion;
-  imgVersion: number;
-  isHead: boolean;
-  directionId: string;
-  /** Called after a capture is successfully recorded (reloads the dashboard). */
-  onFeedbackDone: () => void;
-  /** Rendered at the start of the stage header in place of the plain
-   * "Gallery · N images" title — the inline gallery's version switcher. */
-  headerStart?: React.ReactNode;
+  version: DashboardVersion; imgVersion: number; isHead: boolean; directionId: string;
+  onFeedbackDone: () => void; headerStart?: React.ReactNode;
+  boards?: DashboardBoard[]; versions?: DashboardVersion[]; latestVersionId?: string;
+  onSourceChange?: (source: VisualFocus | null) => void;
 }
 
-export function DirectionHero({
-  version,
-  imgVersion,
-  isHead,
-  directionId,
-  onFeedbackDone,
-  headerStart,
-}: DirectionHeroProps): JSX.Element {
-  const stageImages = stageImagesOf(version);
-  const gallery = galleryImagesOf(version, imgVersion);
-  const hero = heroImageOf(version);
-
+/** One stage, with Foundation and arbitrary named Boards sharing the existing left thumbnails. */
+export function DirectionHero({ version, imgVersion, directionId, onFeedbackDone, headerStart,
+  boards = [], versions = [version], latestVersionId = version.versionId, onSourceChange }: DirectionHeroProps): JSX.Element {
   const [mode, setMode] = useState<StageMode>("select");
-  const [activePath, setActivePath] = useState<string | null>(hero);
-  // The capture is SHARED — it lands as a chip in the chat composer, which is
-  // where it gets resolved. The panel below only opens for extract, which is
-  // the one intent that needs a form.
-  const { pending, setPending, clear: clearCapture } = usePendingCapture();
+  const [selectedKey, setSelectedKey] = useState("foundation");
+  const [historyRevision, setHistoryRevision] = useState<string | null>(null);
+  const [showRetired, setShowRetired] = useState(false);
   const [extractOpen, setExtractOpen] = useState(false);
-
-  const capture = pending?.capture ?? null;
-
-  // Keep the staged image valid as versions are appended / regenerated: re-stage
-  // the hero whenever the version's image set changes underneath us.
-  const stagePaths = stageImages.map((s) => s.path).join(",");
-  useEffect(() => {
-    setActivePath((current) =>
-      current && stageImages.some((s) => s.path === current) ? current : hero,
-    );
-    clearCapture();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stagePaths, hero]);
-
-  // Capture acts on the head only, so a historical version always stages plainly.
-  const effectiveMode: StageMode = isHead ? mode : "select";
-
-  const switchMode = (next: StageMode): void => {
-    clearCapture();
-    setExtractOpen(false);
-    setMode(next);
-  };
-
-  if (!hero || stageImages.length === 0) {
-    return (
-      <div className="direction-hero">
-        <div className="gallery-no-preview" role="note">
-          <span className="gallery-no-preview-title">No preview generated</span>
-          <span className="gallery-no-preview-hint">
-            Preview images require <code>OPENAI_API_KEY</code> and an entitled image model.
-          </span>
+  const { pending, setPending, clear: clearCapture } = usePendingCapture();
+  const items = boardStageItems(directionId, version, boards, showRetired);
+  const item = items.find((s) => s.key === selectedKey) ?? items[0];
+  const revision = item.board?.revisions.find((r) => r.id === historyRevision) ?? item.revision;
+  const source: VisualSource | null = item.board && revision
+    ? { kind: "board", directionId, versionId: revision.foundation.versionId, boardId: item.board.id, revisionId: revision.id }
+    : item.source;
+  const imagePath = item.board ? revision?.imagePath : item.path;
+  const identity = source ? `${source.kind}:${source.versionId}:${source.kind === "board" ? source.revisionId : ""}` : `${selectedKey}:absent`;
+  useEffect(() => { setHistoryRevision(null); clearCapture(); setExtractOpen(false); }, [directionId, version.versionId]);
+  useEffect(() => { clearCapture(); setExtractOpen(false); onSourceChange?.(source ?? (item.board
+    ? { kind: "board", directionId, versionId: version.versionId, boardId: item.board.id } : null)); }, [identity, version.versionId]);
+  const gallery = imagePath ? [{ path: imagePath, alt: item.label, caption: item.label, version: imgVersion }] : [];
+  const capture = pending?.capture;
+  const changeMode = (next: StageMode): void => { clearCapture(); setExtractOpen(false); setMode(next); };
+  return <div className="direction-hero">
+    <div className="stage">
+      <div className="stage-head">
+        {headerStart ?? <b className="stage-head__title">Foundation and Boards</b>}
+        {imagePath && source && <div className="stage-tools" role="group" aria-label="Stage mode">
+          {STAGE_MODES.map((m) => <button key={m} type="button" className={`stage-tool${mode === m ? " is-active" : ""}`} aria-pressed={mode === m} onClick={() => changeMode(m)}>{stageModeLabel(m)}</button>)}
+        </div>}
+      </div>
+      <div className="stage-body">
+        <div className="stage-thumbs" role="tablist" aria-label="Staged image" aria-orientation="vertical">
+          {items.map((entry) => <button key={entry.key} type="button" role="tab" aria-selected={entry.key === item.key}
+            className={`stage-thumb${entry.key === item.key ? " is-active" : ""}`} title={entry.label}
+            onClick={() => { clearCapture(); setSelectedKey(entry.key); setHistoryRevision(null); }}>
+            {entry.path ? <AssetImage className="stage-thumb__img" path={entry.path} alt={entry.label} version={imgVersion} /> : <span className="stage-thumb__img" aria-label="No render">—</span>}
+            <span className="stage-thumb__label">{entry.label}{entry.board?.retiredAt ? " (retired)" : ""}</span>
+          </button>)}
+        </div>
+        <div className="board-stage-content">
+          {imagePath && source ? <StageImage key={identity} path={imagePath} alt={`${version.name} — ${item.label}`} mode={mode} imgVersion={imgVersion}
+            gallery={gallery} galleryIndex={0} onCapture={(next) => setPending({ capture: next, source })} />
+            : <div className="gallery-no-preview" role="note"><span className="gallery-no-preview-title">{revision?.status === "failed" ? "Board render failed" : revision ? "Board render pending" : item.board ? "No Board render for this foundation" : "Foundation render pending"}</span>
+              <span className="gallery-no-preview-hint">{revision?.error ?? (item.board ? "Choose a historical revision or explicitly update this Board to the selected foundation." : "Generate a foundation tile to enable image-conditioned Boards and assets. Keyless runs retain prompts.")}</span></div>}
+          <details className="stage-details" key={item.key}>
+            <summary>{item.board ? "Details & history" : "Details"}</summary>
+            <p className="field-hint"><strong>{item.label}</strong> · Foundation {foundationLabel(versions, source?.versionId ?? version.versionId)}</p>
+            {revision?.conditioning === "legacy-unverified" && <p className="field-hint" role="note">Migrated artwork: foundation conditioning was not verified. Its version relationship is historical provenance.</p>}
+            {item.board && <label>Board history<select aria-label="Board revision history" value={revision?.id ?? ""} onChange={(e) => { clearCapture(); setHistoryRevision(e.target.value); }}>
+              {!revision && <option value="">No revision for selected foundation</option>}
+              {[...item.board.revisions].reverse().map((r) => <option key={r.id} value={r.id}>{r.id} · {foundationLabel(versions, r.foundation.versionId)} · {r.status}</option>)}
+            </select></label>}
+          </details>
         </div>
       </div>
-    );
-  }
-
-  const staged = activePath ?? hero;
-  const stagedLabel =
-    stageImages.find((s) => s.path === staged)?.label ?? "Generated image";
-  const stagedIndex = Math.max(
-    0,
-    gallery.findIndex((g) => g.path === staged),
-  );
-
-  return (
-    <div className="direction-hero">
-      <div className="stage">
-        <div className="stage-head">
-          {headerStart ?? (
-            <>
-              <b className="stage-head__title">Gallery</b>
-              <span className="stage-head__count">
-                {stageImages.length} {stageImages.length === 1 ? "image" : "images"}
-              </span>
-            </>
-          )}
-          {isHead && (
-            <div className="stage-tools" role="group" aria-label="Stage mode">
-              {STAGE_MODES.map((m) => (
-                <button
-                  key={m}
-                  type="button"
-                  className={`stage-tool${effectiveMode === m ? " is-active" : ""}`}
-                  aria-pressed={effectiveMode === m}
-                  onClick={() => switchMode(m)}
-                >
-                  {stageModeLabel(m)}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Thumbnails in a column to the left; the staged image takes the rest
-            of the width at its natural aspect ratio, however tall that is. */}
-        <div className="stage-body">
-          {stageImages.length > 1 && (
-            <div className="stage-thumbs" role="tablist" aria-label="Staged image" aria-orientation="vertical">
-              {stageImages.map((s) => (
-                <button
-                  key={s.path}
-                  type="button"
-                  role="tab"
-                  aria-selected={s.path === staged}
-                  className={`stage-thumb${s.path === staged ? " is-active" : ""}`}
-                  title={s.label}
-                  onClick={() => {
-                    clearCapture();
-                    setActivePath(s.path);
-                  }}
-                >
-                  <AssetImage
-                    key={`${s.path}-${imgVersion}`}
-                    className="stage-thumb__img"
-                    path={s.path}
-                    alt={`${version.name} — ${s.label}`}
-                    version={imgVersion}
-                  />
-                  <span className="stage-thumb__label">{s.label}</span>
-                </button>
-              ))}
-            </div>
-          )}
-          <StageImage
-            path={staged}
-            alt={`${version.name} — ${stagedLabel}`}
-            mode={effectiveMode}
-            imgVersion={imgVersion}
-            gallery={gallery}
-            galleryIndex={stagedIndex}
-            onCapture={(next) => {
-              setExtractOpen(false);
-              setPending({
-                capture: next,
-                directionId,
-                versionId: version.versionId,
-                sourceImage: sourceImageNameFor(version.images, staged) ?? undefined,
-              });
-            }}
-          />
-        </div>
-
-        {isHead && (
-          <p className="stage-hint">
-            {capture
-              ? "Captured — resolve it from the chat composer, or open the full options below."
-              : stageHint(effectiveMode)}
-          </p>
-        )}
-      </div>
-
-      {/* Resolved from the composer by default. The full panel opens on demand,
-          for extract-as-asset and the less common options. */}
-      {isHead && isCaptureMode(effectiveMode) && capture && (
-        <>
-          <button
-            type="button"
-            className="btn btn-sm btn-ghost stage-more-options"
-            aria-expanded={extractOpen}
-            onClick={() => setExtractOpen((o) => !o)}
-          >
-            {extractOpen ? "Hide options" : "More options (keep as, extract as asset)…"}
-          </button>
-          {extractOpen && (
-            <ElementFeedback
-              key={capture.kind === "crop" ? capture.previewUrl : capture.hex}
-              directionId={directionId}
-              versionId={version.versionId}
-              capture={capture}
-              sourceImage={sourceImageNameFor(version.images, staged) ?? undefined}
-              onClear={() => {
-                clearCapture();
-                setExtractOpen(false);
-              }}
-              onDone={() => {
-                clearCapture();
-                setExtractOpen(false);
-                onFeedbackDone();
-              }}
-            />
-          )}
-        </>
-      )}
+      {imagePath && (capture || isCaptureMode(mode)) && <p className="stage-hint">{capture ? "Captured — resolve it in the chat composer or open the full options below." : stageHint(mode)}</p>}
     </div>
-  );
+    {boards.some((b) => b.retiredAt) && <label className="field-hint"><input type="checkbox" checked={showRetired} onChange={(e) => setShowRetired(e.target.checked)} /> Show retired Board history</label>}
+    <BoardControls directionId={directionId} versions={versions} boards={boards} selectedVersionId={version.versionId} latestVersionId={latestVersionId}
+      board={item.board} revisionId={revision?.id ?? null} reload={onFeedbackDone} />
+    {isCaptureMode(mode) && capture && source && <>
+      <button type="button" className="btn btn-sm btn-ghost stage-more-options" aria-expanded={extractOpen} onClick={() => setExtractOpen((o) => !o)}>{extractOpen ? "Hide options" : "More options (keep as, extract as asset)…"}</button>
+      {extractOpen && <ElementFeedback key={capture.kind === "crop" ? capture.previewUrl : capture.hex}
+        source={source} capture={capture}
+        onClear={() => { clearCapture(); setExtractOpen(false); }} onDone={() => { clearCapture(); setExtractOpen(false); onFeedbackDone(); }} />}
+    </>}
+  </div>;
 }

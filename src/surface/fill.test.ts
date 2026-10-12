@@ -60,7 +60,6 @@ function makeDirectionVersion(
     summary: "A summary.",
     positioning: "A positioning statement.",
     character: {},
-    homepageMockupPrompt: "",
     styleTilePrompt: "",
     copyExamples: { headline: "h", subheadline: "s", cta: "c" },
     usage: { rules: [], antiRules: [] },
@@ -322,10 +321,11 @@ describe("runSurfaceFill — context + art direction reach the prompt (Test 2, S
     expect(prompt).toContain("legible at 16px");
     expect(prompt).toContain('"primary" color');
     expect(prompt).toContain("Tone: friendly.");
-    expect(prompt).toContain("fully transparent background");
+    expect(prompt).toContain("Generate usable standalone artwork");
+    expect(prompt).not.toContain("fully transparent background");
     expect(prompt).toContain(HARD_RULE);
     expect(prompt).toContain(DISCARD_NOTE);
-    expect(prompt).not.toMatch(/#[0-9a-fA-F]{6}\b/);
+    expect(prompt).toContain("Foundation tokens:");
   });
 });
 
@@ -356,6 +356,7 @@ describe("runSurfaceFill — closes the loop with bind (Test 3, SC-05)", () => {
     // A THIRD gap slot, added after the keyless fill above.
     await surfaceCore.patchSlots([makeSlot("icon.scooter", "icon")]);
 
+    await fs.writeFile(path.join(directionDirOf("direction-a"), "versions", VERSION_ID, "style-tile.png"), "foundation-tile");
     mockKeyedGeneration();
     const keyedResult = await runSurfaceFill({ cwd: tmpDir, slot: "icon.scooter" });
     expect(keyedResult.dryRun).toBe(false);
@@ -591,8 +592,8 @@ describe("runSurfaceFill — extracts against the pinned approved version (Test 
       "asset-version.json",
     );
     const versionRecord = JSON.parse(await fs.readFile(versionRecordPath, "utf-8"));
-    expect(versionRecord.source.versionId).toBe(VERSION_ID);
-    expect(versionRecord.source.versionId).not.toBe(v2.id);
+    expect(versionRecord.foundation.versionId).toBe(VERSION_ID);
+    expect(versionRecord.foundation.versionId).not.toBe(v2.id);
   });
 });
 

@@ -11,7 +11,7 @@ what specifically exercises the new behavior. -->
 
 ## Checklist
 
-- [ ] `npm run build && npx tsc --noEmit && npx vitest run` passes
+- [ ] `npm run build && npm run typecheck && npm test` passes
 - [ ] `npm run test:package` passes (if packaging, the build, or `serve`
       changed)
 - [ ] Tests added/updated

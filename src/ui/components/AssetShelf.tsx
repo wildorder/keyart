@@ -6,8 +6,8 @@
  * shelf's entire data source and direction A's assets structurally cannot
  * appear beside direction B's.
  */
-import React, { useState } from "react";
-import type { DashboardDirection, DashboardExtractedAsset } from "../types";
+import React, { useState, type JSX } from "react";
+import type { DashboardDirection, DashboardExtractedAsset, DashboardVersion } from "../types";
 import {
   assetShelfItems,
   assetAffordances,
@@ -19,10 +19,12 @@ import { JobProgress, useAction } from "./JobProgress";
 import { useToasts } from "./Toasts";
 import { postJson, deleteJson } from "../hooks";
 import {
-  assetRegenerateRequest,
+  assetReviseRequest,
+  assetGenerateRequest,
   assetRetireRequest,
   exportAssetPackRequest,
 } from "../direction-actions.js";
+import { foundationLabel } from "../board-view.js";
 
 interface AssetPackResponse {
   directionId: string;
@@ -34,14 +36,27 @@ interface AssetPackResponse {
 export function AssetShelf({
   direction,
   reload,
+  focusedVersionId,
 }: {
   /** The FOCUSED direction — the shelf reads ONLY its extractedAssets. */
   direction: DashboardDirection;
   reload: () => void;
+  focusedVersionId?: string | null;
 }): JSX.Element {
   const { pushToast } = useToasts();
   const items = assetShelfItems(direction);
   const [packing, setPacking] = useState(false);
+  const [generateOpen, setGenerateOpen] = useState(false);
+  const [generateName, setGenerateName] = useState("");
+  const [generateBrief, setGenerateBrief] = useState("");
+  const [target, setTarget] = useState(focusedVersionId ?? direction.head ?? "");
+  const [generateConfirmation, setGenerateConfirmation] = useState<{ directionId: string; versionId: string; name: string; describe: string } | null>(null);
+  const generate = useAction(reload);
+  const confirmGenerate = (): void => {
+    if (!generateConfirmation) return;
+    const req = assetGenerateRequest(generateConfirmation);
+    generate.start(req.path, req.body); setGenerateConfirmation(null); setGenerateOpen(false);
+  };
 
   const exportPack = async (): Promise<void> => {
     if (packing) return;
@@ -67,6 +82,7 @@ export function AssetShelf({
     <div className="asset-shelf">
       <div className="asset-shelf__header">
         <span className="asset-shelf__title">Assets ({items.length})</span>
+        <button className="btn btn-secondary btn-sm" disabled={!direction.head || generate.running} onClick={() => { setTarget(focusedVersionId ?? direction.head ?? ""); setGenerateOpen((v) => !v); setGenerateConfirmation(null); }}>Generate asset</button>
         {items.length > 0 && (
           <button
             type="button"
@@ -79,15 +95,24 @@ export function AssetShelf({
         )}
       </div>
 
+      {generateOpen && !generateConfirmation && <div className="regen-form">
+        <label>Asset name<input value={generateName} onChange={(e) => setGenerateName(e.target.value)} /></label>
+        <label>Asset brief<textarea value={generateBrief} onChange={(e) => setGenerateBrief(e.target.value)} /></label>
+        <label>Foundation<select aria-label="Asset target foundation" value={target} onChange={(e) => setTarget(e.target.value)}>{[...direction.versions].reverse().map((v) => <option key={v.versionId} value={v.versionId}>{foundationLabel(direction.versions, v.versionId)}</option>)}</select></label>
+        <button className="btn btn-primary btn-sm" disabled={!generateName.trim() || !generateBrief.trim() || !target} onClick={() => setGenerateConfirmation({ directionId: direction.id, versionId: target, name: generateName.trim(), describe: generateBrief.trim() })}>Review asset request</button>
+      </div>}
+      {generateConfirmation && <div className="lifecycle-confirm" aria-label="Confirm asset generation"><p>Generate “{generateConfirmation.name}” using foundation {foundationLabel(direction.versions, generateConfirmation.versionId)}.</p><p>{generateConfirmation.describe}</p>
+        <button className="btn btn-primary btn-sm" onClick={confirmGenerate}>Confirm generation</button><button className="btn btn-ghost btn-sm" onClick={() => setGenerateConfirmation(null)}>Cancel</button></div>}
+      <JobProgress jobId={generate.jobId} onDone={generate.onDone} />
+
       {items.length === 0 ? (
         <p className="asset-shelf__empty">
-          No extracted assets yet — draw a box on an image above and choose Extract
-          as asset.
+          No usable assets yet. Generate one directly, or crop a Foundation or Board image and choose Extract as asset.
         </p>
       ) : (
         <div className="asset-shelf__cards">
           {items.map((a) => (
-            <AssetCard key={a.id} asset={a} directionId={direction.id} reload={reload} />
+            <AssetCard key={a.id} asset={a} directionId={direction.id} versions={direction.versions} reload={reload} />
           ))}
         </div>
       )}
@@ -98,10 +123,12 @@ export function AssetShelf({
 function AssetCard({
   asset,
   directionId,
+  versions,
   reload,
 }: {
   asset: DashboardExtractedAsset;
   directionId: string;
+  versions: DashboardVersion[];
   reload: () => void;
 }): JSX.Element {
   const { pushToast } = useToasts();
@@ -110,12 +137,29 @@ function AssetCard({
   const tweakAction = useAction(reload);
   const [tweak, setTweak] = useState("");
   const [remember, setRemember] = useState(false);
+  const [revisionConfirmation, setRevisionConfirmation] = useState<{ directionId: string; assetId: string; revisionId: string; tweak: string; remember: boolean; foundation: string } | null>(null);
+  const [chooseFoundation, setChooseFoundation] = useState(false);
+  const [replacement, setReplacement] = useState("");
 
   const startTweak = (): void => {
     const t = tweak.trim();
     if (t.length === 0) return;
-    const req = assetRegenerateRequest(directionId, asset.id, t, { remember });
+    const original = asset.foundation?.versionId;
+    const foundation = chooseFoundation ? replacement : original;
+    if (!foundation || !versions.some((v) => v.versionId === foundation)) {
+      setChooseFoundation(true);
+      return;
+    }
+    setRevisionConfirmation({ directionId, assetId: asset.id, revisionId: asset.headVersionId, tweak: t, remember, foundation });
+  };
+  const confirmRevision = (): void => {
+    if (!revisionConfirmation) return;
+    const req = assetReviseRequest(revisionConfirmation.directionId, revisionConfirmation.assetId, revisionConfirmation.tweak,
+      { remember: revisionConfirmation.remember, revisionId: revisionConfirmation.revisionId, versionId: revisionConfirmation.foundation });
     tweakAction.start(req.path, req.body);
+    setRevisionConfirmation(null);
+    setChooseFoundation(false);
+    setReplacement("");
     setTweak("");
   };
 
@@ -181,6 +225,8 @@ function AssetCard({
       <p className="asset-card__description" title={asset.description}>
         {asset.description}
       </p>
+      {asset.foundation && <p className="field-hint">{asset.origin === "generated" ? "Generated" : "Extracted"} · Foundation {asset.foundation.versionId}</p>}
+      {asset.conditioning === "legacy-unverified" && <p className="field-hint" role="note">Migrated artwork: foundation conditioning was not verified. Its version relationship is historical provenance.</p>}
 
       <div className="asset-card__tweak">
         <input
@@ -205,8 +251,20 @@ function AssetCard({
           disabled={tweakAction.running || tweak.trim().length === 0}
           onClick={startTweak}
         >
-          {tweakAction.running ? "Tweaking…" : "Tweak"}
+          {tweakAction.running ? "Revising…" : "Revise asset"}
         </button>
+        {chooseFoundation && !revisionConfirmation && <div className="lifecycle-confirm">
+          <p>This asset’s original foundation is unavailable. Which foundation should this revision use? The existing asset is unchanged.</p>
+          <label>Replacement foundation<select aria-label={`Foundation for ${asset.name}`} value={replacement} onChange={(e) => setReplacement(e.target.value)}>
+            <option value="">Choose a foundation…</option>
+            {versions.map((v) => <option key={v.versionId} value={v.versionId}>{foundationLabel(versions, v.versionId)}</option>)}
+          </select></label>
+          {versions.length === 0 && <p>Create a foundation first, then return to revise this asset.</p>}
+          <button className="btn btn-primary btn-sm" disabled={!replacement} onClick={startTweak}>Review revision</button>
+          <button className="btn btn-ghost btn-sm" onClick={() => { setChooseFoundation(false); setReplacement(""); }}>Cancel</button>
+        </div>}
+        {revisionConfirmation && <div className="lifecycle-confirm"><p>Revise source {revisionConfirmation.revisionId} using foundation {foundationLabel(versions, revisionConfirmation.foundation)}. {revisionConfirmation.tweak}</p>
+          <button className="btn btn-primary btn-sm" onClick={confirmRevision}>Confirm revision</button><button className="btn btn-ghost btn-sm" onClick={() => setRevisionConfirmation(null)}>Cancel</button></div>}
         <JobProgress jobId={tweakAction.jobId} onDone={tweakAction.onDone} />
       </div>
 

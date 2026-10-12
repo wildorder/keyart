@@ -14,7 +14,9 @@ vi.mock("../config.js", async (importOriginal) => {
 import { runDirection } from "../commands/direction.js";
 import { runExplore } from "../commands/explore.js";
 import { runEditDirection, runSaveVariant } from "../commands/edit-direction.js";
-import { runRegenerateVisuals } from "../commands/regenerate-visuals.js";
+import { runRegenerateVisuals, runReviseDirection } from "../commands/regenerate-visuals.js";
+import * as openai from "../openai.js";
+import { createBrandCore } from "../brand/core.js";
 import { readHead, readVersion } from "../direction/store.js";
 import { createDirectionCore } from "../direction/core.js";
 import { directionsRoot } from "../config.js";
@@ -97,8 +99,40 @@ async function seedAndExplore(): Promise<void> {
 }
 
 describe("edit direction (in-place + save-as-variant, no network / no key)", () => {
-  it("edits a direction VERSION in place, rewriting its direction-version.json", async () => {
+  it("a pinned older source survives head changes and approval stays pinned through a keyed palette edit", async () => {
     await seedAndExplore();
+    const original = await readHead(directionsDir(), "direction-a");
+    const originalDir = await versionDir("direction-a");
+    const originalBytes = await snapshotDir(originalDir);
+    const brand = createBrandCore(tmpDir, buildTestConfig(tmpDir));
+    await brand.setPointer({ directionId: "direction-a", versionId: original.id });
+    const pointer = (await brand.read()).approvedPointer;
+    await runEditDirection({ cwd: tmpDir, directionId: "direction-a", edits: { name: "Newer head" } });
+    const pinned = await runReviseDirection({ cwd: tmpDir, directionId: "direction-a", versionId: original.id });
+    expect((await readVersion(directionsDir(), "direction-a", pinned.versionId)).name).toBe(original.name);
+    vi.spyOn(openai, "hasApiKey").mockReturnValue(true);
+    const image = vi.spyOn(openai, "generateImage").mockImplementation(async ({ outPath }) => {
+      await fs.writeFile(outPath, "new tile"); return { written: true, dryRun: false };
+    });
+    vi.spyOn(openai, "describeImageBrand").mockResolvedValue({ read: { colors: [], type: {} }, dryRun: false });
+    vi.spyOn(openai, "detectContradictionsLLM").mockResolvedValue({ contradictions: [], dryRun: false });
+    const tokens = structuredClone(original.tokens!);
+    tokens.palette.find((token) => token.role === "primary")!.hex = "#765432";
+    const edited = await runSaveVariant({ cwd: tmpDir, directionId: "direction-a", versionId: original.id, edits: { tokens } });
+    expect(image).toHaveBeenCalledTimes(1);
+    const result = await readVersion(directionsDir(), "direction-a", edited.versionId);
+    expect(result.tokens!.palette.find((token) => token.role === "primary")!.hex).toBe("#765432");
+    expect(result.name).toBe(original.name);
+    expect(await snapshotDir(originalDir)).toEqual(originalBytes);
+    expect((await brand.read()).approvedPointer).toEqual(pointer);
+    expect(image.mock.calls[0][0].outPath).toContain(edited.versionId);
+  });
+
+  it("edits by appending a foundation while preserving its source bytes", async () => {
+    await seedAndExplore();
+    const original = await readHead(directionsDir(), "direction-a");
+    const originalFile = path.join(await versionDir("direction-a"), "direction-version.json");
+    const originalBytes = await fs.readFile(originalFile, "utf8");
 
     const result = await runEditDirection({
       cwd: tmpDir,
@@ -106,6 +140,8 @@ describe("edit direction (in-place + save-as-variant, no network / no key)", () 
       edits: { name: "Renamed A", summary: "A brand-new summary." },
     });
     expect(result.directionId).toBe("direction-a");
+    expect(result.versionId).not.toBe(original.id);
+    expect(await fs.readFile(originalFile, "utf8")).toBe(originalBytes);
 
     // (a) The head version's record reflects the edit; identity preserved.
     const edited = await readHead(directionsDir(), "direction-a");
@@ -201,7 +237,7 @@ describe("edit direction (in-place + save-as-variant, no network / no key)", () 
     const child = await readVersion(directionsDir(), "direction-a", variant.versionId);
     expect(child.name).toBe("Hand Tuned");
     expect(child.summary).toBe("A hand-authored take.");
-    expect(child.producedBy).toBe("manual edit");
+    expect(child.producedBy).toBe(`manual edit from ${parentVersionId}`);
     expect(child).not.toHaveProperty("lineage");
 
     // (c) skipImages: an edited version never writes preview PNGs.

@@ -2,10 +2,10 @@ import { CommandError } from "../errors.js";
 
 /**
  * The single teaching draft refusal. Every caller-direction-targeted command
- * that needs a version (regenerate, approve, asset extract, asset pack with an
+ * that defaults to its head (regenerate, approve, asset pack with an
  * explicit --direction) routes a draft through this, so the refusal always
  * names the fix instead of crashing or fabricating a version. Pure, no I/O —
- * this is the single source of the draft-refusal wording.
+ * explicit foundation resolver handles Board/asset generation separately.
  */
 export function assertDirectionHasVersions(
   directionId: string,

@@ -50,9 +50,9 @@ Direction  ──────────────── the aggregate root o
         └── versions/<versionId>/  (v1 = first explore; every regenerate appends; head = current)
 ```
 
-Three authoritative records: **Direction** (which embeds **Brief** and owns
+The foundation records are: **Direction** (which embeds **Brief** and owns
 `versions[]`/`head`), **Memory** (one per direction), and **DirectionVersion**.
-Everything under `guides/`, `generated/`, `brand.css`, boards, `brief.md`, and
+Named Boards and asset versions are additional authoritative records. Everything under `guides/`, `generated/`, `brand.css`, deterministic token specimens, `brief.md`, and
 snapshots is a **projection**.
 
 On disk, one direction is one tree:
@@ -63,7 +63,9 @@ brand/directions/<id>/
   brief.md             # PROJECTION of the embedded brief — rewritten on every brief write
   memory.yaml          # this direction's append-only memory log
   assets/              # moodboard files + kept crops
-  extracted-assets/    # produced ExtractedAsset trees (asset-extraction)
+  boards/              # named Board indexes and independent revisions
+  board-updates/       # captured batch manifests
+  extracted-assets/    # generated/extracted usable assets (formatVersion 2)
   versions/<versionId>/  # direction-version.json + prompts + images + context-snapshot.md
 ```
 
@@ -129,6 +131,7 @@ Direction {
   brief: Brief;            // EMBEDDED, 1:1 — the durable authored intent (§3)
   assets: AssetRef[];      // moodboard references + kept crops (path + intent)
   versions: string[];      // ordered version ids; [] ⇒ DRAFT
+  versionOrdinals?: Record<string, number>; // stable display numbers, including deleted ids
   head: string | null;     // last entry of versions; null ⇒ DRAFT
   version: number;         // optimistic concurrency for the whole record
   createdAt; updatedAt;
@@ -138,6 +141,14 @@ Direction {
 The direction is the **only isolation boundary**: no cross-direction reads, ever. It
 owns its **Memory** (`memory.yaml`) and its **versions** as sibling stores under its
 own folder — scope is location.
+
+**Explicit foundation deletion.** `direction delete-version` removes the selected
+version directory and its active history entry, never its direction-owned Boards
+or extracted assets. The approved foundation cannot be deleted. Ordinal metadata
+reserves deleted ids/numbers without retaining their content; older records derive
+ordinals from history until the next write. Asset revisions retain their original
+foundation reference. Only a later revision request requires an explicit replacement
+if that foundation is missing; deletion never prompts for or assigns a replacement.
 
 **The draft state.** A direction that has been *described* but not yet *generated* is a
 legal **draft**: `versions: []`, `head: null` (the record's schema enforces the
@@ -221,6 +232,21 @@ Brief {
 
 ## 4. DirectionVersion — a realized render
 
+### Pinned foundation boundary
+
+`resolveFoundation({ cwd, config, directionId, versionId })` resolves an explicit
+member of that direction's version history. Its deeply frozen result contains the
+saved `briefSnapshot`, content/tokens, and that version's tile path (or `null` when
+the tile is pending or absent). It never borrows a mutable brief, another version's
+image, or a sibling direction's state. Derived generation uses this boundary.
+Unsupported snapshots receive a non-mutating error.
+
+The version writer reserves a fresh directory exclusively before writing. Its
+single path generates just the authoritative tile and extracts tokens
+from it; approval is untouched. File-backed versioned writes serialize their
+read/check/write transaction and atomically replace the complete document, so
+concurrent stale writers cannot both pass the same version check.
+
 The unit generation produces. A `DirectionVersion` has **three authoring entry points**:
 
 - **`explore`** (model-based) — `explore <directionId>` generates **v1 into an existing
@@ -236,10 +262,9 @@ The unit generation produces. A `DirectionVersion` has **three authoring entry p
   **extracted** on the first `regenerate`. Create mints a collision-safe id — there is
   no `expectedVersion` check on the create path (no create-path 409; that concurrency
   guard lives on versioned-record writes such as a brief PATCH).
-- **`regenerate <directionId>`** (model-based) — re-renders both graphics and
+- **`direction revise <directionId>`** (alias `regenerate`, model-based) — renders one foundation tile and
   re-extracts the unlocked tokens; **appends** the next version. Old versions are never
-  overwritten. There is **no user-facing "refine" / "iterate"** — the user performs
-  exactly one action, *give feedback*, and versioning happens behind the curtain. New
+  overwritten. Boards and usable assets are revised independently; a foundation revision never cascades into them. New
   sibling directions are born only by divergent `explore` or `fork`.
 
 ```ts
@@ -250,7 +275,7 @@ DirectionVersion {
   contextSnapshot: string;       // frozen RENDERED context block (global rules ▸ memory ▸ refs ▸ brief)
   briefSnapshot: string;         // frozen RENDERED brief at generation time (core.getRenderedBrief())
 
-  // ── realized content (the head version is the source of truth) ──
+  // ── realized content (the selected immutable foundation is authoritative) ──
   name: string;
   summary: string;
 
@@ -275,13 +300,15 @@ DirectionVersion {
   usage: { rules: string[]; antiRules: string[] };
 
   // COPY — a realized demonstration of the brief's voice
-  copy: { headline: string; subheadline: string; cta: string };
+  copyExamples: { headline: string; subheadline: string; cta: string };
+  positioning: string;
+  styleTilePrompt: string;
 }
 ```
 
 - **Projections:** `brand.css`, the palette/type board, `visual-style-guide.md`,
-  `cursor-brand.mdc`, and page briefs are all rendered from a version. `brand.css` *is*
-  the image (color zero-drift); the font is labeled *approximate*.
+  `cursor-brand.mdc`, and page briefs are all rendered from a version. `brand.css` projects
+  structured tokens exactly; image colors and the mapped font remain approximate.
 - **Two output tiers preserved:** deterministic token artifacts (exact, no model call)
   vs. evocative imagery (best-effort). `character` describes the imagery half in words;
   `tokens` are the exact half.
@@ -290,6 +317,124 @@ DirectionVersion {
   lives (and keeps evolving) on the Direction; a version freezes only the *rendered*
   brief/context text for provenance. Copying the structured records here would create
   a second home for their facts.
+
+---
+
+## 4a. Board and BoardRevision — application exploration
+
+A Board belongs to one direction, with durable local instructions and independent
+revision history. It is not a surface-manifest slot or the deterministic
+`style-board.svg/.md` token specimen.
+
+```ts
+BoardIndex {
+  formatVersion: 1; version: number; id; directionId; name;
+  instructions: string; instructionVersion: number;
+  revisionIds: string[]; head: string | null; createdAt; retiredAt?;
+}
+BoardRevision {
+  formatVersion: 1; id; boardId;
+  foundation: { directionId; versionId };
+  sourceRevisionId: string | null;
+  instructions: string; instructionVersion: number; createdAt;
+  status: "pending" | "completed" | "failed";
+  conditioning: "foundation" | "legacy-unverified";
+  operationId?: string; runningPid?: number; error?: string;
+  files: { prompt: string; context: string; image?: string };
+}
+```
+
+`board.json` lives at `boards/<boardId>/`; each revision lives at
+`boards/<boardId>/revisions/<revisionId>/board-revision.json`.
+Artifact paths in `files` are direction-relative forward-slash paths:
+`.../board-prompt.md`, `.../context-snapshot.json`, and (only with a render)
+`.../board.png`. Revision intent/provenance is immutable; an in-flight reservation
+is finalized once. A terminal pending attempt has no `runningPid`.
+Completed renders alone advance `head`; all attempts remain inspectable.
+
+Create requires a target foundation. Revise independently resolves its source
+revision (completed head by default) and target foundation (latest direction head
+by default). UI/chat pin both before confirmation. Current local instructions
+plus the optional tweak are snapshotted per revision; empty tweak preserves them.
+The tile is the primary reference; previous composition is secondary. Current
+non-retired global/direction signals still flow through the shared compiler;
+mutable working briefs and retired snapshot signals cannot replace the foundation.
+
+`board-updates/<batchId>.json` contains
+`{formatVersion:1, version, id, foundation, createdAt, entries}`.
+Each entry holds `boardId/name/sourceRevisionId/instructions/instructionVersion/
+operationId/status`, plus optional `revisionId/error`. At most 250 entries are
+captured once. Resume recovers persisted successes by operation id, retries only
+unfinished entries, and reports instruction changes as conflicts. A new update is
+a new batch. Assets and approval are excluded.
+
+## 4b. Usable assets — generated or extracted
+
+The existing `extracted-assets/` directory stores both origins. An `AssetRef`
+remains an input reference; a produced `ExtractedAsset` never becomes a token
+source or automatic generation reference.
+
+```ts
+ExtractedAssetIndex {
+  formatVersion: 2; id; name; directionId;
+  versions: string[]; head: string; retiredAt?: string; slotId?: string;
+}
+AssetVersion {
+  formatVersion: 2; id; createdAt; description; producedBy?: string;
+  foundation: { directionId; versionId };
+  conditioning: "foundation" | "legacy-unverified";
+  provenance:
+    | { kind: "generated" }
+    | { kind: "extracted"; source:
+          | { kind: "foundation"; directionId; versionId; image: "styleTile" }
+          | { kind: "board"; directionId; boardId; revisionId };
+        cropPath?: string; cropBox?: { x; y; w; h } };
+  sourceRevisionId?: string;
+  status: "pending" | "completed" | "failed";
+  contextSnapshot: string; files: string[];
+  dryRun?: boolean; imageSkips?: string[];
+}
+```
+
+`asset.json` lives at `extracted-assets/<assetId>/`. Version folders contain a
+reserved `asset-attempt.json`, terminal `asset-version.json`, prompt/context,
+optional stored crop, and optional `asset.png`. The `files` list is relative to
+that version folder; extracted `provenance.cropPath` is cwd-relative.
+
+**Chat crop attachments.** A crop sent with a message carries its PNG plus exact
+foundation or Board-revision source. The server validates that source and stores
+the upload under the owning direction's `assets/chat-attachments/`; attaching it
+does not create a moodboard reference, memory entry, or extracted asset. Chat sees
+the crop as image context. An approved extraction receives that exact crop and
+source; feedback can reference its thumbnail; a foundation revision can use it as
+a one-shot image reference. The active attachment survives clarification and is
+consumed when its action is approved or cancelled. Each action has one chat card
+through confirmation, job progress, and its result, with generated-image links.
+The successful head is an empty string until a completed render exists.
+Pending/failed attempts never replace it. Asset revision keeps its source
+foundation and uses its previous render as a secondary reference.
+Surface fill directly generates artwork, preserving `slotId` binding.
+
+Packs report each asset's actual `foundation`, `provenance`, `conditioning`,
+`pending` state, and optional pack-relative `file`. Approval and packing do
+not bring old assets forward to a new foundation.
+
+Both derived schemas require conditioning provenance. New attempts use
+`foundation`; this describes their generation pipeline, not exact pixel fidelity.
+Imported imagery must use `legacy-unverified`. Unsupported older records receive
+non-mutating teaching errors. See the
+[migration checklist](migration-0.2.md); no silent conversion
+or permanent legacy reader exists.
+
+### Write transactions and interrupted processes
+
+Output identities are reserved without sharing directories. Versioned file writes
+lock their read/check/write transaction and atomically replace complete documents.
+Short write locks are not held during model calls. An interrupted process can
+leave a lock; the error identifies it. Verify every relevant writer has stopped
+before removing that exact lock manually. PID-only automatic lock reclamation is
+not safe and is deliberately absent. Pending attempts and batch outcomes remain
+inspectable and support explicit revision/resume.
 
 ---
 
@@ -399,7 +544,7 @@ direction target. It is append-only.
                                                                        │
                                              approve ─▶ pin {directionId, versionId}
                                                                        ▼
-                        projections: brand.css · board · guides · cursor rules · asset pack · binding
+                        projections: brand.css · specimen · guides · cursor rules · binding
 ```
 
 - **`direction new`** → mints a **draft** (brief + memory, no versions).
@@ -407,9 +552,13 @@ direction target. It is append-only.
   **`explore --describe/--from --count N`** → mints N sibling drafts with N distinct
   briefs, v1 each. **`fork`** → new drafts sharing the source's brief.
 - **feedback → `regenerate`** → appends the next **version** to *that* direction.
-- **approve** → pins a specific `{directionId, versionId}`; all downstream artifacts
-  are projections of the pinned version (guides, cursor rules, `brand.css`, the asset
-  pack, and — when a surface manifest exists — `binding.json`).
+- **approve** → pins a specific `{directionId, versionId}` for guides, cursor rules,
+  `brand.css`, deterministic specimens, and token bindings. The refreshed asset
+  pack retains each asset version's actual foundation/provenance; approval never
+  rebrands its images.
+- **Board/asset generation** → consumes an explicitly selected foundation and
+  appends a separate derived revision. It never moves the foundation head or
+  approval pointer and never becomes a token source.
 
 The three intent stores cooperate at extraction: brief `colorIntent` **seeds** the
 engine + vision read (soft), a memory color-lock decision **holds its hex verbatim**
@@ -442,7 +591,7 @@ Regenerated from the records above; hand-edits are never the source of truth:
 - **Drafts are legal; head is derived:** `head === null` iff `versions` is empty;
   otherwise `head` is always the last entry of `versions` (schema-enforced, never
   silently repaired).
-- **Projections are disposable:** `brief.md`, `brand.css`, boards, guides regenerate from records.
+- **Projections are disposable:** `brief.md`, `brand.css`, deterministic specimens, and guides regenerate from records. Named Boards own durable instructions and revision records.
 - **Append-only history:** regenerate never overwrites a version; approve pins one. Retire/supersede markers (`retiredAt`/`supersededBy`) skip entries in the compiler and `selectNegatives` — the entry still exists, nothing deleted, attribution preserved. Edit = supersede, delete = retire, promote = append + retire the source, archive = a status transition — every lifecycle write is additive; nothing is ever physically removed.
 - **Optimistic versioning:** every record write is version-checked (409 on stale).
 - **Keyless parity:** every record is authorable/editable with no API key; the model only

@@ -6,6 +6,7 @@ import { resolveDirection } from "../direction/store.js";
 import { createBrandCore } from "../brand/core.js";
 import {
   runAssetExtract,
+  runAssetGenerate,
   runAssetRegenerate,
   type AssetExtractResult,
 } from "../asset/extract.js";
@@ -17,9 +18,9 @@ import {
 } from "../asset/asset-store.js";
 import { isExtractedAssetRetired, type AssetSourceImage } from "../asset/schema.js";
 
-export const ASSET_VERBS = ["extract", "regenerate", "list", "remove", "pack"] as const;
+export const ASSET_VERBS = ["generate", "extract", "revise", "regenerate", "list", "remove", "pack"] as const;
 export type AssetVerb = (typeof ASSET_VERBS)[number];
-export const ASSET_SOURCE_IMAGES = ["styleTile", "homepageMockup", "moodboard"] as const;
+export const ASSET_SOURCE_IMAGES = ["styleTile"] as const;
 
 /** Typed flag bag — the CLI passes commander's cmdOpts directly; the MCP adapter maps ParsedArgs.flags. */
 export interface AssetFlags {
@@ -27,6 +28,8 @@ export interface AssetFlags {
   describe?: string;
   image?: string;
   version?: string;
+  board?: string;
+  revision?: string;
   crop?: string;
   name?: string;
   tweak?: string;
@@ -47,6 +50,7 @@ export interface AssetListRow {
 
 export type AssetCommandResult =
   | ({ verb: "extract" } & AssetExtractResult)
+  | ({ verb: "generate" | "revise" } & AssetExtractResult)
   | ({ verb: "regenerate" } & AssetExtractResult)
   | { verb: "list"; directionId: string; assets: AssetListRow[]; filesWritten: string[] }
   | {
@@ -68,10 +72,12 @@ export type AssetCommandResult =
     };
 
 const USAGE: Record<AssetVerb, string> = {
+  generate: 'Usage: keyart asset generate --direction <id> --version <v> --name <name> --describe "<brief>"',
+  revise: 'Usage: keyart asset revise <assetId> --direction <id> --tweak "<text>" [--revision <r>] [--version <replacement-foundation>]',
   extract:
-    'Usage: keyart asset extract --direction <dirId> --describe "<text>" [--image styleTile|homepageMockup|moodboard] [--version <versionId>] [--crop <path>] [--name <name>]',
+    'Usage: keyart asset extract --direction <id> --describe "<text>" (--version <v> | --board <id> --revision <r>) [--crop <path>] [--name <name>]',
   regenerate:
-    'Usage: keyart asset regenerate <assetId> --direction <dirId> --tweak "<text>" [--remember] [--author <author>]',
+    'Usage: keyart asset regenerate <assetId> --direction <dirId> --tweak "<text>" [--version <replacement-foundation>] [--remember] [--author <author>]',
   list: "Usage: keyart asset list [--direction <dirId>]",
   remove: "Usage: keyart asset remove <assetId> [--direction <dirId>]",
   pack: "Usage: keyart asset pack [--direction <dirId>]",
@@ -133,14 +139,23 @@ export async function runAsset(
   const verb = rest[0];
   if (!(ASSET_VERBS as readonly string[]).includes(verb)) {
     throw new CommandError(
-      `Unknown asset verb "${verb}". Supported: extract, regenerate, list, remove, pack.`,
+      `Unknown asset verb "${verb}". Supported: ${ASSET_VERBS.join(", ")}.`,
     );
   }
 
   switch (verb as AssetVerb) {
+    case "generate": {
+      if (rest.length > 1) throw new CommandError(USAGE.generate);
+      assertOnlyFlags("generate", flags, ["direction", "version", "name", "describe"]);
+      if (!flags.direction || !flags.version || !flags.describe) throw new CommandError(USAGE.generate);
+      const result = await runAssetGenerate({ cwd, directionId: flags.direction, versionId: flags.version, name: flags.name, describe: flags.describe });
+      console.log(`Generated asset ${result.assetId}@${result.versionId}: ${result.status}${result.dryRun ? " — dry-run" : ""}.`);
+      return { verb: "generate", ...result };
+    }
     case "extract":
       return assetExtract(cwd, rest, flags);
     case "regenerate":
+    case "revise":
       return assetRegenerate(cwd, rest, flags);
     case "list":
       return assetList(cwd, rest, flags);
@@ -166,6 +181,8 @@ async function assetExtract(
     "version",
     "crop",
     "name",
+    "board",
+    "revision",
   ]);
   if (!flags.direction) {
     throw new CommandError(`asset extract requires --direction.\n${USAGE.extract}`);
@@ -188,6 +205,8 @@ async function assetExtract(
     describe: flags.describe,
     image: flags.image as AssetSourceImage | undefined,
     versionId: flags.version,
+    boardId: flags.board,
+    revisionId: flags.revision,
     cropPath: flags.crop,
     name: flags.name,
   });
@@ -208,7 +227,7 @@ async function assetRegenerate(
   if (rest.length > 2) {
     throw new CommandError(`Too many arguments for asset regenerate.\n${USAGE.regenerate}`);
   }
-  assertOnlyFlags("regenerate", flags, ["direction", "tweak", "remember", "author"]);
+  assertOnlyFlags(rest[0] as AssetVerb, flags, ["direction", "version", "tweak", "remember", "author", "revision"]);
   const assetId = rest[1];
   if (!assetId) {
     throw new CommandError(`asset regenerate requires an assetId.\n${USAGE.regenerate}`);
@@ -224,6 +243,8 @@ async function assetRegenerate(
     directionId,
     assetId,
     tweak: flags.tweak,
+    revisionId: flags.revision,
+    versionId: flags.version,
     remember: flags.remember === true,
     author: flags.author,
   });
@@ -233,7 +254,7 @@ async function assetRegenerate(
   );
   logImageSkips(result.imageSkips);
 
-  return { verb: "regenerate", ...result };
+  return { verb: rest[0] === "revise" ? "revise" : "regenerate", ...result };
 }
 
 async function assetList(
@@ -264,7 +285,7 @@ async function assetList(
       index.head,
       "asset.png",
     );
-    const hasPng = await pathExists(headPngAbs);
+    const hasPng = Boolean(index.head) && await pathExists(headPngAbs);
     rows.push({
       id: index.id,
       name: index.name,

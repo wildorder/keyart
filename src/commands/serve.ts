@@ -19,6 +19,7 @@ import {
   createSurfaceApi,
 } from "../ui/server-api.js";
 import { createSettingsApi } from "../ui/settings-api.js";
+import { createBoardApi } from "../ui/board-api.js";
 import { createArtifactStore } from "../store/artifact-store.js";
 import { createJobStore, type JobStore } from "../ui/jobs.js";
 import { createChatApi } from "../ui/chat-api.js";
@@ -139,6 +140,7 @@ export function createApiMounts(opts: { cwd: string; jobs: JobStore }): Mount[] 
 
   return [
     { prefix: "/api", handler: createLocalOnlyGuard() },
+    { prefix: "/api", handler: createBoardApi({ cwd, jobs }) },
 
     // Reconciliation list GETs must come before createWriteApi, which owns
     // the /api/concepts prefix for writes but next()s all GETs.

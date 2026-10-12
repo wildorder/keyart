@@ -105,12 +105,45 @@ async function pathExists(relPath: string): Promise<boolean> {
 
 // 1. Extract dry-run round-trip via dispatch.
 describe("runAsset extract", () => {
+  it.each(["generate", "extract"] as const)("%s retains its missing foundation until the user explicitly chooses a replacement", async (verb) => {
+    await seedRootDirection("moody");
+    const directionId = await seedDirection("moody");
+    const core = createDirectionCore(tmpDir, config);
+    const originalVersion = (await core.get(directionId)).head!;
+    const made = await runAsset(tmpDir, [verb], { direction: directionId, version: originalVersion, describe: "A friendly mascot", name: "Mascot" });
+    if (made.verb !== "generate" && made.verb !== "extract") throw new Error("unexpected result");
+    const directionDir = path.join(tmpDir, "brand", "directions", directionId);
+    const { readAssetIndex, readAssetVersion } = await import("../asset/asset-store.js");
+    const source = await readAssetVersion(directionDir, made.assetId, made.versionId);
+    const { readVersion } = await import("../direction/store.js");
+    const { writeDirectionVersion } = await import("../explore/write-direction-version.js");
+    const root = path.join(tmpDir, "brand", "directions");
+    const content = await readVersion(root, directionId, originalVersion);
+    await writeDirectionVersion({ cwd: tmpDir, config, directionId, directionsDir: root, version: { ...content, id: "replacement" }, referenceImagePaths: [], skipImages: true });
+    // Simulate a removed foundation directory without altering the surviving asset.
+    await fs.rename(path.join(directionDir, "versions", originalVersion), path.join(tmpDir, "removed-foundation"));
+    const before = await readAssetIndex(directionDir, made.assetId);
+    await expect(runAsset(tmpDir, ["revise", made.assetId], { direction: directionId, revision: made.versionId, tweak: "Face left" })).rejects.toMatchObject({
+      code: "asset_foundation_required", directionId, assetId: made.assetId, revisionId: made.versionId,
+      missingVersionId: originalVersion, availableVersions: ["replacement"], message: expect.stringMatching(/Choose a replacement.*--version/),
+    });
+    expect(await readAssetIndex(directionDir, made.assetId)).toEqual(before);
+    const revised = await runAsset(tmpDir, ["revise", made.assetId], { direction: directionId, revision: made.versionId, version: "replacement", tweak: "Face left" });
+    if (revised.verb !== "revise") throw new Error("unexpected result");
+    const output = await readAssetVersion(directionDir, made.assetId, revised.versionId);
+    expect(output.foundation.versionId).toBe("replacement");
+    expect(output.provenance).toEqual(source.provenance);
+    expect(output.sourceRevisionId).toBe(made.versionId);
+    expect(await readAssetVersion(directionDir, made.assetId, made.versionId)).toEqual(source);
+  });
+
   it("extracts a new asset in dry-run with cwd-relative forward-slash paths and no PNG", async () => {
     await seedRootDirection("moody");
     const directionId = await seedDirection("moody");
 
     const result = await runAsset(tmpDir, ["extract"], {
       direction: directionId,
+      version: (await createDirectionCore(tmpDir, config).get(directionId)).head!,
       describe: "the yak mascot",
     });
 
@@ -167,7 +200,8 @@ describe("runAsset required-flag + wrong-verb-coupling enforcement", () => {
     await expect(
       runAsset(tmpDir, ["extract"], {
         direction: directionId,
-        describe: "x",
+        version: (await createDirectionCore(tmpDir, config).get(directionId)).head!,
+      describe: "x",
         image: "bogus",
       }),
     ).rejects.toThrow(CommandError);
@@ -175,7 +209,8 @@ describe("runAsset required-flag + wrong-verb-coupling enforcement", () => {
     await expect(
       runAsset(tmpDir, ["extract"], {
         direction: directionId,
-        describe: "x",
+        version: (await createDirectionCore(tmpDir, config).get(directionId)).head!,
+      describe: "x",
         tweak: "warmer",
       }),
     ).rejects.toThrow(CommandError);
@@ -199,6 +234,7 @@ describe("runAsset regenerate", () => {
 
     const extracted = await runAsset(tmpDir, ["extract"], {
       direction: directionA,
+      version: (await createDirectionCore(tmpDir, config).get(directionA)).head!,
       describe: "the yak mascot",
     });
     if (extracted.verb !== "extract") throw new Error("expected extract result");
@@ -252,14 +288,17 @@ describe("runAsset list", () => {
 
     const a1 = await runAsset(tmpDir, ["extract"], {
       direction: directionA,
+      version: (await createDirectionCore(tmpDir, config).get(directionA)).head!,
       describe: "yak",
     });
     const a2 = await runAsset(tmpDir, ["extract"], {
       direction: directionA,
+      version: (await createDirectionCore(tmpDir, config).get(directionA)).head!,
       describe: "cow",
     });
     const b1 = await runAsset(tmpDir, ["extract"], {
       direction: directionB,
+      version: (await createDirectionCore(tmpDir, config).get(directionB)).head!,
       describe: "goat",
     });
     if (a1.verb !== "extract" || a2.verb !== "extract" || b1.verb !== "extract") {
@@ -270,7 +309,7 @@ describe("runAsset list", () => {
     if (onlyA.verb !== "list") throw new Error("expected list result");
     expect(onlyA.assets.map((r) => r.id).sort()).toEqual([a1.assetId, a2.assetId].sort());
     const row = onlyA.assets.find((r) => r.id === a1.assetId)!;
-    expect(row.head).toBe(a1.versionId);
+    expect(row.head).toBe("");
     expect(row.versionCount).toBe(1);
     // Dry-run heads have no PNG — the row honestly omits headPng.
     expect(row.headPng).toBeUndefined();
@@ -279,13 +318,12 @@ describe("runAsset list", () => {
     if (onlyB.verb !== "list") throw new Error("expected list result");
     expect(onlyB.assets.map((r) => r.id)).toEqual([b1.assetId]);
 
-    // Once a head PNG exists, the row carries its cwd-relative path so a
-    // caller can retrieve the file without knowing the store layout.
+    // A stray PNG cannot turn an unfinished attempt into a completed head.
     const a2PngRel = `brand/directions/${directionA}/extracted-assets/${a2.assetId}/versions/${a2.versionId}/asset.png`;
     await fs.writeFile(path.join(tmpDir, a2PngRel), "stub-png", "utf-8");
     const withPng = await runAsset(tmpDir, ["list"], { direction: directionA });
     if (withPng.verb !== "list") throw new Error("expected list result");
-    expect(withPng.assets.find((r) => r.id === a2.assetId)!.headPng).toBe(a2PngRel);
+    expect(withPng.assets.find((r) => r.id === a2.assetId)!.headPng).toBeUndefined();
     expect(withPng.assets.find((r) => r.id === a1.assetId)!.headPng).toBeUndefined();
 
     await runAsset(tmpDir, ["remove", a1.assetId], { direction: directionA });
@@ -309,6 +347,7 @@ describe("runAsset remove", () => {
     const directionId = await seedDirection("moody");
     const extracted = await runAsset(tmpDir, ["extract"], {
       direction: directionId,
+      version: (await createDirectionCore(tmpDir, config).get(directionId)).head!,
       describe: "yak",
     });
     if (extracted.verb !== "extract") throw new Error("expected extract result");
@@ -347,6 +386,7 @@ describe("runAsset pack", () => {
     const directionId = await seedDirection("moody");
     await runAsset(tmpDir, ["extract"], {
       direction: directionId,
+      version: (await createDirectionCore(tmpDir, config).get(directionId)).head!,
       describe: "yak",
     });
 
@@ -382,6 +422,8 @@ describe("asset CLI wiring", () => {
         directionId,
         "--describe",
         "the yak mascot",
+        "--version",
+        (await createDirectionCore(tmpDir, config).get(directionId)).head!,
       ],
       { from: "user" },
     );
@@ -432,7 +474,7 @@ describe("runAsset — draft refusals (WS-15)", () => {
         direction: "draft-a",
         describe: "the mark",
       }),
-    ).rejects.toThrow(/keyart explore draft-a/);
+    ).rejects.toThrow(/Generate v1/);
   });
 
   it("pack --direction <draft> teaches and writes no pack folder", async () => {

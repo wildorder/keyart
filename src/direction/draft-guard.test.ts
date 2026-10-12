@@ -49,7 +49,7 @@ describe("draft-guard import membership (R-2/R-3/R-4 fence)", () => {
     return out.sort();
   }
 
-  it("is imported by exactly the four caller-direction-targeted consumers — never by pointer-addressed commands", async () => {
+  it("guards head-default consumers; derived outputs use the explicit foundation boundary", async () => {
     // R-2/R-3: audit and surface bind/fill take no direction argument, so a
     // draft is not a representable input to them — they must never gain the
     // guard. R-4: asset pack's guard covers only the explicit-id branch.
@@ -57,10 +57,10 @@ describe("draft-guard import membership (R-2/R-3/R-4 fence)", () => {
       (file) => file !== "direction/draft-guard.ts",
     );
     expect(importers).toEqual([
-      "asset/extract.ts",
       "asset/pack.ts",
       "commands/approve.ts",
       "commands/regenerate-visuals.ts",
     ]);
+    expect(await sourceFilesImporting("foundation.js")).toContain("asset/extract.ts");
   });
 });

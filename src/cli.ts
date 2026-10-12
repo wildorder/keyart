@@ -1,7 +1,7 @@
 import { Command } from "commander";
 import { runInit, runInitInteractive } from "./commands/init.js";
 import { runExplore } from "./commands/explore.js";
-import { runRegenerateVisuals } from "./commands/regenerate-visuals.js";
+import { runRegenerateVisuals, runReviseDirection } from "./commands/regenerate-visuals.js";
 import { runApprove } from "./commands/approve.js";
 import { runBrief } from "./commands/brief.js";
 import { runAudit } from "./commands/audit.js";
@@ -16,12 +16,14 @@ import {
   runDirectionList,
   runDirectionShow,
   runDirectionFork,
+  runDirectionDeleteVersion,
   runRule,
   runPromote,
   DIRECTION_VERBS,
   MEMORY_ACTIONS,
 } from "./commands/direction.js";
 import { runAsset, type AssetFlags } from "./commands/asset.js";
+import { runBoard, type BoardFlags } from "./commands/board.js";
 import { runSurface, type SurfaceFlags } from "./commands/surface.js";
 import { CommandError } from "./errors.js";
 
@@ -41,6 +43,7 @@ const program = new Command();
 
 program
   .name("keyart")
+  .enablePositionalOptions()
   .description("A local creative director for AI-built prototypes")
   .version(PACKAGE_VERSION)
   .option("--cwd <dir>", "working directory", process.cwd());
@@ -181,6 +184,8 @@ program
 
 program
   .command("regenerate <directionId>")
+  .option("--reference <path>", "One-shot image reference; not added to moodboard")
+  .option("--version <versionId>", "Source foundation to revise (default: head)")
   .description(
     "Give feedback and regenerate — appends a new version to the direction (never edits its text)",
   )
@@ -191,7 +196,7 @@ program
   .action(
     async (
       directionId: string,
-      cmdOpts: { tweak?: string },
+      cmdOpts: { tweak?: string; version?: string; reference?: string },
     ) => {
       const cwd = program.opts().cwd as string;
       await runAction(() =>
@@ -199,6 +204,8 @@ program
           cwd,
           directionId,
           tweak: cmdOpts.tweak,
+          versionId: cmdOpts.version,
+          referencePath: cmdOpts.reference,
         }),
       );
     },
@@ -286,6 +293,12 @@ function isMemoryLifecycleAction(word: string | undefined): boolean {
 
 program
   .command("direction <verb> [rest...]")
+  .option("--reference <path>", "One-shot image reference for revise; not added to moodboard")
+  .option("--asset <path>", "Stored crop thumbnail for direction feedback")
+  .option("--version <versionId>", "Source foundation for revise; exact required id for delete-version")
+  .option("--yes", "Confirm permanent delete-version (assets and Boards retained)")
+  .option("--expected-version <n>", "Direction record concurrency version for delete-version", Number)
+  .option("--tweak <text>", "Foundation change for revise")
   .description(
     `Work with directions — the whole verb family: ${DIRECTION_VERBS.join(" | ")}. ` +
       "new <name> mints a keyless draft; fork copies brief+moodboard; create '<json>' --from <id> persists agent-authored content at v1; " +
@@ -319,6 +332,12 @@ program
       rest: string[],
       cmdOpts: {
         describe?: string;
+        reference?: string;
+        asset?: string;
+        version?: string;
+        yes?: boolean;
+        expectedVersion?: number;
+        tweak?: string;
         name?: string;
         count?: string;
         withMemory?: boolean;
@@ -357,6 +376,12 @@ program
       const isMemoryAction = verb === "memory" && isMemoryLifecycleAction(rest[0]);
       await runAction(() => {
         switch (verb) {
+          case "delete-version":
+            if (rest.length !== 1) throw new CommandError("Usage: keyart direction delete-version <id> --version <v> --yes");
+            return runDirectionDeleteVersion({ cwd, directionId: rest[0], versionId: cmdOpts.version, confirmed: cmdOpts.yes, expectedVersion: cmdOpts.expectedVersion });
+          case "revise":
+            if (rest.length !== 1) throw new CommandError("Usage: keyart direction revise <id> [--version <v>] [--tweak <text>]");
+            return runReviseDirection({ cwd, directionId: rest[0], versionId: cmdOpts.version, tweak: cmdOpts.tweak, referencePath: cmdOpts.reference });
           case "new":
             return runDirectionNew({ cwd, name: rest[0], describe: cmdOpts.describe });
           case "list":
@@ -419,6 +444,7 @@ program
               from: cmdOpts.from,
               note: cmdOpts.note,
               body: cmdOpts.body,
+              asset: cmdOpts.asset,
               kind: cmdOpts.kind,
               author: cmdOpts.author,
               channel: cmdOpts.channel,
@@ -438,11 +464,13 @@ program
 
 program
   .command("asset <verb> [assetId]")
-  .description("Direction-scoped extracted assets: extract | regenerate | list | remove | pack")
+  .description("Direction assets: generate | extract | revise | list | remove | pack (regenerate aliases revise)")
   .option("--direction <dirId>", "Extraction source (extract, required), or target direction (regenerate | list | remove | pack; defaults to the approved direction)")
   .option("--describe <text>", "What to isolate, e.g. \"the yak mascot\" (extract, required)")
-  .option("--image <name>", "Source image: styleTile (default) | homepageMockup | moodboard (extract only)")
-  .option("--version <versionId>", "Source direction version (extract only; default: head)")
+  .option("--image <name>", "Foundation source image: styleTile (extract only)")
+  .option("--version <versionId>", "Explicit foundation for generate/extract")
+  .option("--board <boardId>", "Extract from this Board's identified revision")
+  .option("--revision <revisionId>", "Source Board or asset revision")
   .option("--crop <path>", "Crop reference image narrowing the subject (extract only)")
   .option("--name <name>", "Display name for the new asset (extract only)")
   .option("--tweak <text>", "The change to apply, e.g. \"make it face left\" (regenerate, required)")
@@ -453,6 +481,24 @@ program
     await runAction(() =>
       runAsset(cwd, assetId !== undefined ? [verb, assetId] : [verb], cmdOpts),
     );
+  });
+
+program
+  .command("board <verb> [boardId]")
+  .description("Boards: create | revise | update | list | show | retire")
+  .option("--direction <id>", "Owning direction (required)")
+  .option("--version <versionId>", "Target foundation; required on create/update, latest by default on revise")
+  .option("--revision <revisionId>", "Source revision; 'none' pins no previous render")
+  .option("--name <name>", "Board name on create")
+  .option("--describe <brief>", "Durable Board brief on create")
+  .option("--tweak <text>", "Local revision instructions")
+  .option("--board <id>", "Update one Board instead of all active Boards")
+  .option("--resume <batchId>", "Retry unfinished entries of a captured update")
+  .option("--captured <json>", "Previously confirmed immutable update inputs")
+  .option("--instruction-version <n>", "Previously confirmed Board instruction version")
+  .option("--include-retired", "Include retired Boards in list")
+  .action(async (verb: string, boardId: string | undefined, flags: BoardFlags) => {
+    await runAction(() => runBoard(program.opts().cwd as string, [verb, ...(boardId ? [boardId] : [])], flags));
   });
 
 program
@@ -577,6 +623,19 @@ program
       );
     },
   );
+
+// Subcommand --version selects a foundation; only the root --version prints
+// package information. Keep --cwd accepted on either side of the command.
+for (const command of program.commands) {
+  command.option("--cwd <dir>", "working directory");
+}
+program.hook("preAction", (_thisCommand, actionCommand) => {
+  const localCwd = actionCommand.opts().cwd as string | undefined;
+  if (localCwd !== undefined) {
+    program.setOptionValue("cwd", localCwd);
+    actionCommand.setOptionValue("cwd", undefined);
+  }
+});
 
 // The configured program is exported (not parsed here) so it can be imported and
 // its command wiring unit-tested with custom argv. The `keyart` bin

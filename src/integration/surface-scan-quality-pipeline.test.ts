@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach, type MockInstance } from "vitest";
 import fs from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
@@ -372,7 +372,6 @@ function makeDirectionVersion(tokens: DirectionTokens): DirectionVersion {
     summary: "A summary.",
     positioning: "A positioning statement.",
     character: {},
-    homepageMockupPrompt: "",
     styleTilePrompt: "",
     copyExamples: { headline: "h", subheadline: "s", cta: "c" },
     usage: { rules: [], antiRules: [] },
@@ -482,7 +481,7 @@ const AUTHORED_SLOT: SurfaceSlot = {
 
 let tmpDir: string;
 let savedKey: string | undefined;
-let logSpy: ReturnType<typeof vi.spyOn>;
+let logSpy: MockInstance<typeof console.log>;
 
 beforeEach(async () => {
   resetPwFake();

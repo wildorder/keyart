@@ -1,8 +1,9 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach, type MockInstance } from "vitest";
 import fs from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
 import type { KeyartConfig } from "../types.js";
+import { createBrandCore } from "../brand/core.js";
 
 // Mock loadConfig (tmp project) AND openai. Every other export keeps its real
 // implementation — the openai fns default to `actual` (genuine dry-run without
@@ -148,7 +149,9 @@ async function seedManifest(cwd: string, slots: SurfaceSlot[] = BASE_SLOTS): Pro
 
 /** Scripts a keyed image generation writing a real (tiny) PNG to disk — the
  *  asset-extraction-pipeline `mockKeyedGeneration` idiom. */
-function mockKeyedGeneration(): void {
+async function mockKeyedGeneration(): Promise<void> {
+  const pointer = (await createBrandCore(tmpDir, buildTestConfig(tmpDir)).read()).approvedPointer!;
+  await fs.writeFile(path.join(directionDirOf(tmpDir, pointer.directionId), "versions", pointer.versionId, "style-tile.png"), "foundation-tile");
   process.env.OPENAI_API_KEY = "test-key";
   vi.mocked(hasApiKey).mockReturnValue(true);
   vi.mocked(generateImage).mockImplementation(async (opts) => {
@@ -163,7 +166,7 @@ let tmpDir: string;
 let savedKey: string | undefined;
 let dirA: string;
 let dirB: string;
-let logSpy: ReturnType<typeof vi.spyOn>;
+let logSpy: MockInstance<typeof console.log>;
 
 beforeEach(async () => {
   tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "keyart-surfacex-"));
@@ -310,7 +313,7 @@ describe("surface-manifest pipeline (end-to-end, network-free / key-free, SC-13)
     await seedManifest(tmpDir);
     await runApprove({ cwd: tmpDir, directionId: dirA });
 
-    mockKeyedGeneration();
+    await mockKeyedGeneration();
     const fillResult = await runSurfaceFill({ cwd: tmpDir, slot: "icon.mascot" });
     expect(fillResult.dryRun).toBe(false);
     const mascotFill = fillResult.filled[0];
@@ -448,7 +451,7 @@ describe("surface-manifest pipeline (end-to-end, network-free / key-free, SC-13)
     await seedManifest(tmpDir);
     await runApprove({ cwd: tmpDir, directionId: dirA });
 
-    mockKeyedGeneration();
+    await mockKeyedGeneration();
     await runSurfaceFill({ cwd: tmpDir, slot: "icon.mascot" });
     delete process.env.OPENAI_API_KEY;
 
@@ -494,7 +497,7 @@ describe("surface-manifest pipeline (end-to-end, network-free / key-free, SC-13)
     await seedManifest(tmpDir);
     await runApprove({ cwd: tmpDir, directionId: dirA });
 
-    mockKeyedGeneration();
+    await mockKeyedGeneration();
     await runSurfaceFill({ cwd: tmpDir, slot: "icon.mascot" });
     delete process.env.OPENAI_API_KEY;
 
@@ -542,7 +545,7 @@ describe("surface-manifest pipeline (end-to-end, network-free / key-free, SC-13)
     const approveResult = await runApprove({ cwd: tmpDir, directionId: dirA });
     expect(approveResult.surface).toBeDefined();
 
-    mockKeyedGeneration();
+    await mockKeyedGeneration();
     const fillResult = await runSurfaceFill({ cwd: tmpDir, slot: "icon.mascot" });
     expect(fillResult.dryRun).toBe(false);
     delete process.env.OPENAI_API_KEY;

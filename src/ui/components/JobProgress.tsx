@@ -12,6 +12,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import type { ContradictionWarning, Job } from "../types";
 import { useJob, postJson } from "../hooks";
 import { useToasts } from "./Toasts";
+import { dispatchJobSummary, jobImageOutputs, jobResultIncomplete } from "../job-result";
 
 /** Read a string field off an unknown job result without throwing. */
 function resultField(result: unknown, key: string): string | null {
@@ -76,6 +77,8 @@ function resultFirstFilledSlotId(r: unknown): string | null {
 /** A short, human summary of a succeeded job's result (kind-specific). */
 export function summarizeJob(job: Job): string {
   const r = job.result;
+  const dispatched = dispatchJobSummary(r);
+  if (dispatched) return dispatched;
   switch (job.kind) {
     case "explore": {
       // Explore seeds sibling directions (each at v1) — report how many.
@@ -94,7 +97,13 @@ export function summarizeJob(job: Job): string {
     }
     case "regenerate": {
       const id = resultField(r, "directionId");
-      return id ? `Regenerated visuals — ${id}` : "Regenerated visuals";
+      return id ? `Direction revised — ${id}` : "Direction revised";
+    }
+    case "board": {
+      const status = resultField(r, "status");
+      const count = resultArrayLen(r, "entries");
+      if (count !== null) return `Board update ${status ?? "finished"} — ${count} Boards`;
+      return `Board ${status ?? "updated"} — ${resultField(r, "boardId") ?? ""}`;
     }
     case "asset": {
       // Extract and tweak share the ONE "asset" job kind (merged WS-05
@@ -102,7 +111,8 @@ export function summarizeJob(job: Job): string {
       // deliberately verb-neutral — callers that know which gesture just ran
       // (the extract sub-panel) toast a more specific message themselves.
       const id = resultField(r, "assetId");
-      return id ? `Asset updated — ${id}` : "Asset updated";
+      const status = resultField(r, "status");
+      return id ? `Asset ${status ?? "task complete"} — ${id}` : "Asset task complete";
     }
     case "surface": {
       // Fill and scan share the ONE "surface" kind (the merged "asset"
@@ -149,14 +159,20 @@ export function JobProgress({
   }
 
   if (job.status === "succeeded") {
+    const incomplete = jobResultIncomplete(job.result);
     const hardWarnings = resultHardRuleWarnings(job.result);
     const imageSkips = resultImageSkips(job.result);
     return (
-      <div className="job-progress job-progress-success">
+      <div className={`job-progress ${incomplete ? "job-progress-error" : "job-progress-success"}`}>
         <span className="job-icon" aria-hidden="true">
-          ✓
+          {incomplete ? "⚠" : "✓"}
         </span>
         <span>{summarizeJob(job)}</span>
+        {jobImageOutputs(job.result).map((file) => (
+          <a key={file} href={`/api/asset?path=${encodeURIComponent(file)}`} target="_blank" rel="noreferrer">
+            Open {job.kind === "asset" ? "asset" : "image"}
+          </a>
+        ))}
         {hardWarnings.length > 0 && (
           <div className="job-progress-warning">
             {hardWarnings.map((w, i) => (
@@ -234,7 +250,7 @@ export function useAction(reload: () => void): {
     (job: Job) => {
       setRunning(false);
       if (job.status === "succeeded") {
-        pushToast({ kind: "success", message: summarizeJob(job) });
+        pushToast({ kind: jobResultIncomplete(job.result) ? "warning" : "success", message: summarizeJob(job) });
         for (const w of resultHardRuleWarnings(job.result)) {
           pushToast({ kind: "warning", message: w.message });
         }

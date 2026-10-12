@@ -239,11 +239,11 @@ export function PaletteBoard({
                   onClick={() => onRegenerateWithLocks(locked, lockedColors())}
                   title={
                     locked.length === 0
-                      ? "Lock one or more swatches first, then push them into a regenerate"
-                      : "Regenerate the images holding the locked colors, re-extracting the rest"
+                      ? "Lock one or more swatches first, then revise the direction"
+                      : "Revise the foundation tile holding the locked colors, re-extracting the rest"
                   }
                 >
-                  Regenerate image with these locks
+                  Revise direction with these locks
                 </button>
               )}
             </div>

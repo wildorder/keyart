@@ -25,6 +25,8 @@ import { getCommand, dispatchCommand } from "../mcp/registry.js";
 import type { CompleteFn, ToolCall } from "../agent/model.js";
 import type { ChatEvent } from "../agent/loop.js";
 import type { KeyartConfig } from "../types.js";
+import { storeChatAttachment } from "./chat-attachment.js";
+import { resolveDirection } from "../direction/store.js";
 
 function buildTestConfig(cwd: string): KeyartConfig {
   return {
@@ -206,6 +208,7 @@ function runChain(stack: MountEntry[], req: FakeReq, res: FakeRes): Promise<{ ha
 }
 
 function buildStack(cwd: string, jobs: JobStore, complete: CompleteFn): MountEntry[] {
+  ownedJobStores.add(jobs);
   return [
     { prefix: "/api", handler: createLocalOnlyGuard() },
     { prefix: "/api/chat", handler: createChatApi({ cwd, jobs, complete }) },
@@ -215,12 +218,16 @@ function buildStack(cwd: string, jobs: JobStore, complete: CompleteFn): MountEnt
 type PendingApprovalEvent = Extract<ChatEvent, { type: "pending_approval" }>;
 type JobEvent = Extract<ChatEvent, { type: "job" }>;
 
+const CROP_PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aVioAAAAASUVORK5CYII=";
+
 // ---------------------------------------------------------------------------
 
 let tmpDir: string;
 let savedKey: string | undefined;
+const ownedJobStores = new Set<JobStore>();
 
 beforeEach(async () => {
+  ownedJobStores.clear();
   tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "keyart-chat-api-"));
   savedKey = process.env.OPENAI_API_KEY;
   delete process.env.OPENAI_API_KEY;
@@ -233,7 +240,90 @@ beforeEach(async () => {
   await core.create({ id: "moody", name: "Moody" });
 });
 
+describe("chat crop context", () => {
+  async function foundation() {
+    await runExplore({ cwd: tmpDir, directionId: "moody" });
+    const { record } = await resolveDirection(tmpDir, await loadConfig(tmpDir), "moody");
+    const versionId = record.head!;
+    await fs.writeFile(path.join(tmpDir, "brand", "directions", "moody", "versions", versionId, "style-tile.png"), Buffer.from(CROP_PNG.split(",")[1], "base64"));
+    return { kind: "foundation" as const, directionId: "moody", versionId };
+  }
+  it("stores a scoped attachment without memory, feeds vision, and pins the crop before approval", async () => {
+    const source = await foundation();
+    process.env.OPENAI_API_KEY = "test";
+    let received: import("../agent/model.js").ChatMessage[] = [];
+    const complete: CompleteFn = async function* (messages) {
+      received = messages;
+      yield { type: "done", turn: { toolCalls: [{ id: "crop-call", toolName: "asset_extract", arguments: { describe: "the sticker", version: "wrong", image: "wrong" } }] } };
+    };
+    const stack = buildStack(tmpDir, createJobStore(), complete);
+    const res = makeRes();
+    await runChain(stack, makeReq({ method: "POST", originalUrl: "/api/chat", body: { message: "extract this", context: source, attachment: { dataUrl: CROP_PNG, source } } }), res);
+    expect(res.statusCode).toBe(200);
+    const pending = parseSseFrames(res.payload!).find(e => e.type === "pending_approval") as PendingApprovalEvent;
+    expect(pending.arguments).toMatchObject({ version: source.versionId, image: "styleTile" });
+    expect(pending.arguments.crop).toMatch(/assets\/chat-attachments\/.+\.png$/);
+    expect(received.find(m => m.role === "user")).toMatchObject({ imageUrl: CROP_PNG });
+    expect(await createDirectionCore(tmpDir, await loadConfig(tmpDir)).memoryEntries("moody")).toEqual([]);
+    const blocked = makeRes();
+    await runChain(stack, makeReq({ method: "POST", originalUrl: "/api/chat", body: { sessionId: pending.sessionId, message: "switch", context: { directionId: "other" }, attachment: { invalid: true } } }), blocked);
+    expect(blocked.statusCode).toBe(409);
+  });
+  it("rejects forged direction/source, non-images, and escaping attachment directories", async () => {
+    const source = await foundation();
+    await expect(storeChatAttachment(tmpDir, "moody", { dataUrl: CROP_PNG, source: { ...source, directionId: "other" } })).rejects.toThrow(/focused direction/);
+    await expect(storeChatAttachment(tmpDir, "moody", { dataUrl: "data:image/png;base64,YWJj", source })).rejects.toThrow(/not a PNG/);
+    await expect(storeChatAttachment(tmpDir, "moody", { dataUrl: CROP_PNG, source: { ...source, versionId: "missing" } })).rejects.toThrow(/history/);
+    const assets = path.join(tmpDir, "brand", "directions", "moody", "assets");
+    await fs.mkdir(assets, { recursive: true });
+    await fs.symlink(tmpDir, path.join(assets, "chat-attachments"), "junction");
+    await expect(storeChatAttachment(tmpDir, "moody", { dataUrl: CROP_PNG, source })).rejects.toThrow(/escapes/);
+  });
+  it("updates focused context on every new turn", async () => {
+    process.env.OPENAI_API_KEY = "test";
+    const stack = buildStack(tmpDir, createJobStore(), scriptedComplete([{ deltas: ["hello"] }]));
+    const res = makeRes();
+    await runChain(stack, makeReq({ method: "POST", originalUrl: "/api/chat", body: { message: "one", context: { directionId: "moody", versionId: "v1" } } }), res);
+    const done = parseSseFrames(res.payload!).find(e => e.type === "done") as Extract<ChatEvent, {type:"done"}>;
+    const next = makeRes();
+    await runChain(stack, makeReq({ method: "POST", originalUrl: "/api/chat", body: { sessionId: done.sessionId, message: "two", context: { directionId: "moody", versionId: "v2" } } }), next);
+    const get = makeRes();
+    await runChain(stack, makeReq({ method: "GET", originalUrl: `/api/chat/${done.sessionId}` }), get);
+    expect((get.json() as {context: {versionId:string}}).context.versionId).toBe("v2");
+  });
+  it("retains a crop through clarification, then consumes it when the action is resolved", async () => {
+    const source = await foundation();
+    process.env.OPENAI_API_KEY = "test";
+    const stack = buildStack(tmpDir, createJobStore(), scriptedComplete([
+      { deltas: ["What should I do with this crop?"] },
+      { toolCalls: [{ id: "feedback-crop", toolName: "direction_feedback", arguments: { body: "Never use this motif again", polarity: "avoid" } }] },
+      { deltas: ["Cancelled."] },
+    ]));
+    const first = makeRes();
+    await runChain(stack, makeReq({ method: "POST", originalUrl: "/api/chat", body: { message: "this", context: source, attachment: { dataUrl: CROP_PNG, source } } }), first);
+    const done = parseSseFrames(first.payload!).find(e => e.type === "done") as Extract<ChatEvent, {type:"done"}>;
+    const next = makeRes();
+    await runChain(stack, makeReq({ method: "POST", originalUrl: "/api/chat", body: { sessionId: done.sessionId, message: "never use it", context: { directionId: "moody", versionId: "other-view" } } }), next);
+    const pending = parseSseFrames(next.payload!).find(e => e.type === "pending_approval") as PendingApprovalEvent;
+    expect(pending.arguments).toMatchObject({ channel: "visual", polarity: "avoid", asset: expect.stringContaining("chat-attachments/") });
+    const cancel = makeRes();
+    await runChain(stack, makeReq({ method: "POST", originalUrl: `/api/chat/${done.sessionId}/approve`, body: { approve: false } }), cancel);
+    const get = makeRes();
+    await runChain(stack, makeReq({ method: "GET", originalUrl: `/api/chat/${done.sessionId}` }), get);
+    expect((get.json() as { context: {attachment?:unknown} }).context.attachment).toBeUndefined();
+  });
+});
+
 afterEach(async () => {
+  // A returned SSE response may leave command work running. Also drain jobs
+  // after failed assertions, before restoring their mocks, key or filesystem.
+  // A timeout deliberately leaves those dependencies intact for the live job.
+  await vi.waitFor(() => {
+    const running = [...ownedJobStores].flatMap((store) =>
+      store.list().filter((job) => job.status === "running"),
+    );
+    expect(running, "chat jobs must settle before fixture teardown").toEqual([]);
+  }, { timeout: 25_000 });
   vi.restoreAllMocks();
   if (savedKey === undefined) {
     delete process.env.OPENAI_API_KEY;
@@ -438,13 +528,9 @@ describe("createChatApi — SSE/JSON transport over the WS-02 agent loop", () =>
 
     // The chat response already returned (frames collected above) — the loop
     // did not await the job. Poll it independently via the shared JobStore.
-    let job = jobs.get(jobEvent.jobId);
-    const deadline = Date.now() + 5000;
-    while (job && job.status === "running" && Date.now() < deadline) {
-      await new Promise((r) => setTimeout(r, 25));
-      job = jobs.get(jobEvent.jobId);
-    }
-    expect(job?.status).toBe("succeeded");
+    await vi.waitFor(() => {
+      expect(jobs.get(jobEvent.jobId)?.status).toBe("succeeded");
+    }, { timeout: 10_000 });
 
     const global = await createBrandCore(tmpDir, config).read();
     expect(global.approvedPointer?.directionId).toBe(directionId);

@@ -283,7 +283,7 @@ const VISUAL_STYLE_GUIDE_TEMPLATE = `# Visual Style Guide — {{directionName}}
 ## Image Prompt References
 
 - **Style tile prompt:** see \`brand/approved/style-tile-prompt.md\`
-- **Homepage mockup prompt:** see \`brand/approved/homepage-mockup-prompt.md\`
+- Explore applications separately with named Boards pinned to a foundation version.
 `;
 
 const BRAND_GUIDE_TEMPLATE = `# Brand Guide — {{directionName}}
@@ -556,10 +556,6 @@ export function renderImagePrompts(direction: DirectionContent): string {
 ## Style Tile
 
 ${direction.styleTilePrompt}
-
-## Homepage Mockup
-
-${direction.homepageMockupPrompt}
 `;
 }
 

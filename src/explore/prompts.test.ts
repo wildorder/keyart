@@ -104,7 +104,7 @@ describe("buildExploreSystemPrompt", () => {
     expect(sys).toContain("FONT FAMILY NAMES");
     // Only the image prompts may carry hexes/fonts.
     expect(sys).toContain(
-      'Only the image prompts ("styleTilePrompt"/"homepageMockupPrompt") may contain hex codes and font names',
+      'Only the style tile prompt ("styleTilePrompt") may contain hex codes and font names',
     );
     // The character/usage hygiene rule forbids hex/font in the prose fields.
     expect(sys).toContain(

@@ -15,6 +15,7 @@ import {
   type ConnectHandler,
 } from "./server-api.js";
 import type { JobKind, JobStore } from "./jobs.js";
+import { storeChatAttachment } from "./chat-attachment.js";
 
 /**
  * The three route matchers this module serves. `CHAT_APPROVE_RE` is checked
@@ -62,12 +63,14 @@ function writeUnavailable(res: ServerResponse): void {
 
 /** Projects the loop's internal `PendingApproval` (call/leaf/tokens) onto the wire shape used by the `pending_approval` SSE event. */
 function toPendingView(pending: PendingApproval): {
+  callId: string;
   sessionId: string;
   toolName: string;
   arguments: Record<string, unknown>;
   mutates: "write" | "destructive";
 } {
   return {
+    callId: pending.call.id,
     sessionId: pending.sessionId,
     toolName: pending.call.toolName,
     arguments: pending.call.arguments,
@@ -93,6 +96,7 @@ interface ChatTurnBody {
   sessionId?: string;
   message: string;
   context: ChatContext;
+  attachment?: unknown;
 }
 
 /** Parses + validates a `POST /api/chat` body. Returns `null` (after sending a 400) when invalid. */
@@ -118,9 +122,12 @@ function parseTurnBody(raw: unknown, res: ServerResponse): ChatTurnBody | null {
   return {
     sessionId,
     message,
+    attachment: body.attachment,
     context: {
       directionId,
       versionId: typeof contextRaw.versionId === "string" ? contextRaw.versionId : undefined,
+      boardId: typeof contextRaw.boardId === "string" ? contextRaw.boardId : undefined,
+      revisionId: typeof contextRaw.revisionId === "string" ? contextRaw.revisionId : undefined,
     },
   };
 }
@@ -145,7 +152,7 @@ export function createChatApi(opts: {
   const complete = opts.complete ?? createComplete();
 
   const launchJob: LaunchJobFn = (kind, tokens) => {
-    const job = jobs.start(kind as JobKind, () =>
+    const job = jobs.start((kind === "direction" ? "regenerate" : kind) as JobKind, () =>
       dispatchCommand({ command: kind, input: tokens }, { defaultCwd: cwd }),
     );
     return { jobId: job.id };
@@ -161,7 +168,7 @@ export function createChatApi(opts: {
 
     let raw: unknown;
     try {
-      raw = await readJsonBody(req);
+      raw = await readJsonBody(req, { limit: 6 * 1024 * 1024 });
     } catch (err) {
       const { status, body } = toHttpError(err);
       sendJson(res, status, body);
@@ -182,6 +189,15 @@ export function createChatApi(opts: {
     } else {
       session = sessions.create(parsed.context);
     }
+
+    if (session.pending) {
+      sendJson(res, 409, { error: "A previous action is awaiting approval. Approve or cancel it before sending another message." });
+      return;
+    }
+    const attachment = parsed.attachment === undefined
+      ? (session.context.directionId === parsed.context.directionId ? session.context.attachment : undefined)
+      : await storeChatAttachment(cwd, parsed.context.directionId, parsed.attachment);
+    session.context = { ...parsed.context, attachment };
 
     const write = openSse(res);
     await pipeEvents(runChatTurn(deps, session, parsed.message), write);

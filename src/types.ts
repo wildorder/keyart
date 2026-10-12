@@ -151,7 +151,6 @@ export interface DirectionContent {
   summary: string;
   positioning: string;
   character: DirectionCharacter;
-  homepageMockupPrompt: string;
   styleTilePrompt: string;
   copyExamples: CopyExamples;
   usage: DirectionUsage;
@@ -164,8 +163,8 @@ export interface DirectionContent {
  * Direction at v1 (the direction-level twin of an authored Brief). It is
  * `DirectionContent` MINUS `tokens`: tokens are EXTRACTED (from a style tile)
  * or engine-SEEDED (from soft intent + verbatim memory color-locks), NEVER
- * hand-authored (data-model law 3). `positioning` and the two image prompts
- * are OPTIONAL — the create core composes prompts deterministically when
+ * hand-authored (data-model law 3). `positioning` and the style tile prompt
+ * is OPTIONAL — the create core composes prompts deterministically when
  * omitted. There is deliberately NO `tokens` field here (the Zod parser also
  * rejects a `tokens` key at runtime); `character`/`usage` are free-text
  * containers whose hex/font hygiene is enforced by the runtime
@@ -180,7 +179,6 @@ export interface AuthoredDirectionContent {
   usage: DirectionUsage; // required key; rules/antiRules may be []
   copyExamples: CopyExamples;
   styleTilePrompt?: string;
-  homepageMockupPrompt?: string;
 }
 
 /**

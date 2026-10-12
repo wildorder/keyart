@@ -2,6 +2,10 @@ import type { DispatchResult } from "../mcp/registry.js";
 import type { dispatchCommand } from "../mcp/registry.js";
 import { loadConfig } from "../config.js";
 import { assembleForChat } from "./context.js";
+import { pinGenerationArguments } from "./pin-generation.js";
+import { AssetFoundationRequiredError } from "../asset/foundation-required.js";
+import { resolveDirection } from "../direction/store.js";
+import { versionOrdinal } from "../direction/schema.js";
 import {
   listLeaves,
   applyContext,
@@ -32,16 +36,17 @@ export type { CompleteFn } from "./model.js";
 export type ChatEvent =
   | { type: "token"; text: string } // a live assistant prose delta (streamed)
   | { type: "assistant_message"; text: string } // the completed prose for one step (= concatenated tokens); seals the bubble
-  | { type: "tool_call"; toolName: string; arguments: Record<string, unknown> }
+  | { type: "tool_call"; callId?: string; toolName: string; arguments: Record<string, unknown> }
   | {
       type: "pending_approval";
+      callId?: string;
       sessionId: string;
       toolName: string;
       arguments: Record<string, unknown>;
       mutates: "write" | "destructive";
     }
-  | { type: "tool_result"; toolName: string; text: string; isError: boolean }
-  | { type: "job"; jobId: string; kind: string }
+  | { type: "tool_result"; callId?: string; toolName: string; text: string; isError: boolean }
+  | { type: "job"; callId?: string; toolName?: string; jobId: string; kind: string }
   | { type: "done"; sessionId: string }
   | { type: "error"; message: string; unavailable?: boolean };
 
@@ -76,6 +81,12 @@ const LONG_RUNNING = new Set([
   "audit",
   "asset_extract",
   "asset_regenerate",
+  "asset_generate",
+  "asset_revise",
+  "board_create",
+  "board_revise",
+  "board_update",
+  "direction_revise",
 ]);
 
 /** Keeps at most `budget` retained messages, never orphaning a `tool` message from its assistant tool-call message. */
@@ -101,6 +112,7 @@ function appendMessage(session: ChatSession, msg: ChatMessage, budget: number): 
 
 type ToolOutcome =
   | { kind: "dispatched"; message: ChatMessage }
+  | { kind: "needs_input"; message: ChatMessage; question: string }
   | { kind: "suspended" };
 
 /**
@@ -113,28 +125,37 @@ async function* handleToolCall(
   leaves: Map<string, VerbLeaf>,
   call: ToolCall,
 ): AsyncGenerator<ChatEvent, ToolOutcome, unknown> {
-  yield { type: "tool_call", toolName: call.toolName, arguments: call.arguments };
+  yield { type: "tool_call", callId: call.id, toolName: call.toolName, arguments: call.arguments };
 
   const leaf = leaves.get(call.toolName);
   if (!leaf) {
     const text = "Unknown tool.";
-    yield { type: "tool_result", toolName: call.toolName, text, isError: true };
+    yield { type: "tool_result", callId: call.id, toolName: call.toolName, text, isError: true };
     return {
       kind: "dispatched",
       message: { role: "tool", toolCallId: call.id, content: text },
     };
   }
 
-  // Inherit ids via the pure applyContext BEFORE toolCallToTokens (SC-05/SC-10):
-  // ONLY the focused directionId is inherited (the single `directionSlot`) —
-  // NO versionId is ever injected, so an omitted version stays omitted through
-  // leaf construction, PendingApproval, and resume; the dispatched tokens carry
-  // only the direction target. Both applyContext and toolCallToTokens perform
-  // NO filesystem access — the head is resolved by the dispatched/launched
-  // command AFTER approval, never before the confirm gate.
-  const filled = applyContext(leaf, call.arguments, {
+  let filled = applyContext(leaf, call.arguments, {
     directionId: session.context.directionId,
   });
+  try {
+    filled = await pinGenerationArguments(deps.cwd, call.toolName, filled, session.context);
+  } catch (error) {
+    const text = error instanceof Error ? error.message : String(error);
+    yield { type: "tool_result", callId: call.id, toolName: call.toolName, text, isError: true };
+    if (error instanceof AssetFoundationRequiredError) {
+      const config = await loadConfig(deps.cwd);
+      const owner = await resolveDirection(deps.cwd, config, error.directionId);
+      const choices = error.availableVersions.map(id => `v${versionOrdinal(owner.record, id) ?? "?"} (${id})`);
+      const question = choices.length
+        ? `The original foundation for asset “${error.assetId}” is no longer available. Which foundation should I use for this revision? Available: ${choices.join(", ")}. Your existing asset is unchanged.`
+        : `The original foundation for asset “${error.assetId}” is no longer available, and this direction has no remaining foundation versions. Create a foundation first, then choose it for the revision. Your existing asset is unchanged.`;
+      return { kind: "needs_input", message: { role: "tool", toolCallId: call.id, content: text }, question };
+    }
+    return { kind: "dispatched", message: { role: "tool", toolCallId: call.id, content: text } };
+  }
   const tokens = toolCallToTokens(leaf, filled);
 
   if (leaf.mutates === "none") {
@@ -142,7 +163,7 @@ async function* handleToolCall(
       { command: leaf.command, input: tokens },
       { defaultCwd: deps.cwd },
     );
-    yield { type: "tool_result", toolName: call.toolName, text: r.text, isError: r.isError };
+    yield { type: "tool_result", callId: call.id, toolName: call.toolName, text: r.text, isError: r.isError };
     return {
       kind: "dispatched",
       message: { role: "tool", toolCallId: call.id, content: r.text },
@@ -159,6 +180,7 @@ async function* handleToolCall(
   session.pending = pending;
   yield {
     type: "pending_approval",
+    callId: call.id,
     sessionId: session.id,
     toolName: call.toolName,
     arguments: filled,
@@ -226,6 +248,17 @@ async function* runToolLoop(deps: LoopDeps, session: ChatSession): AsyncGenerato
         break; // do not dispatch later calls in this turn speculatively
       }
       appendMessage(session, outcome.message, historyBudget);
+      if (outcome.kind === "needs_input") {
+        // Do not let another model round-trip invent a replacement foundation.
+        // End this turn and wait for an actual user answer.
+        for (const skipped of turn.toolCalls.slice(turn.toolCalls.indexOf(call) + 1)) {
+          appendMessage(session, { role: "tool", toolCallId: skipped.id, content: "Not executed: waiting for the user's foundation choice." }, historyBudget);
+        }
+        appendMessage(session, { role: "assistant", content: outcome.question }, historyBudget);
+        yield { type: "assistant_message", text: outcome.question };
+        yield { type: "done", sessionId: session.id };
+        return;
+      }
     }
 
     if (suspended) {
@@ -253,7 +286,9 @@ export async function* runChatTurn(
   }
 
   const historyBudget = deps.historyBudget ?? DEFAULT_HISTORY_BUDGET;
-  appendMessage(session, { role: "user", content: userMessage }, historyBudget);
+  appendMessage(session, session.context.attachment
+    ? { role: "user", content: userMessage, imageUrl: session.context.attachment.dataUrl }
+    : { role: "user", content: userMessage }, historyBudget);
 
   yield* runToolLoop(deps, session);
 }
@@ -272,13 +307,16 @@ export async function* resumeChatTurn(
 
   const historyBudget = deps.historyBudget ?? DEFAULT_HISTORY_BUDGET;
   session.pending = undefined;
+  // The crop survives clarification turns, but a resolved action consumes its
+  // active routing context. Its image remains in the conversation history.
+  session.context.attachment = undefined;
 
   if (decision.approve) {
     if (LONG_RUNNING.has(pending.leaf.toolName)) {
       const { jobId } = deps.launchJob(pending.leaf.command, pending.tokens);
-      yield { type: "job", jobId, kind: pending.leaf.command };
+      yield { type: "job", callId: pending.call.id, toolName: pending.call.toolName, jobId, kind: pending.leaf.command };
       const text = `Launched ${pending.leaf.command} as job ${jobId}.`;
-      yield { type: "tool_result", toolName: pending.call.toolName, text, isError: false };
+      yield { type: "tool_result", callId: pending.call.id, toolName: pending.call.toolName, text, isError: false };
       appendMessage(
         session,
         { role: "tool", toolCallId: pending.call.id, content: text },
@@ -289,7 +327,7 @@ export async function* resumeChatTurn(
         { command: pending.leaf.command, input: pending.tokens },
         { defaultCwd: deps.cwd },
       );
-      yield { type: "tool_result", toolName: pending.call.toolName, text: r.text, isError: r.isError };
+      yield { type: "tool_result", callId: pending.call.id, toolName: pending.call.toolName, text: r.text, isError: r.isError };
       appendMessage(
         session,
         { role: "tool", toolCallId: pending.call.id, content: r.text },
@@ -298,7 +336,7 @@ export async function* resumeChatTurn(
     }
   } else {
     const text = "The user declined this action. Nothing was changed.";
-    yield { type: "tool_result", toolName: pending.call.toolName, text, isError: false };
+    yield { type: "tool_result", callId: pending.call.id, toolName: pending.call.toolName, text, isError: false };
     appendMessage(
       session,
       { role: "tool", toolCallId: pending.call.id, content: text },

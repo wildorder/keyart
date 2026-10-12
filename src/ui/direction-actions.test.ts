@@ -19,6 +19,7 @@ import {
   WS18_TIER_B_BUILDERS,
   WS20_TIER_A_BUILDERS,
   WS20_TIER_B_BUILDERS,
+  BOARD_TIER_A_BUILDERS,
 } from "../integration/studio-roster.js";
 import {
   surfaceFillRequest,
@@ -359,12 +360,13 @@ const {
   divergentExploreRequest,
   approveRequest,
   restoreVersionRequest,
+  deleteVersionRequest,
   forkRequest,
   authoredCreateRequest,
   elementFeedbackRequest,
   extractAssetRequest,
   exportAssetPackRequest,
-  assetRegenerateRequest,
+  assetReviseRequest,
   assetRetireRequest,
   moodboardUploadRequest,
   moodboardAssetRetireRequest,
@@ -388,6 +390,10 @@ const {
 
 /** WS-18's Tier A cases — one entry per builder, keyed by the roster name. */
 const WS18_TIER_A_CASES: Record<string, () => void> = {
+  deleteVersionRequest: () => {
+    expect(deleteVersionRequest("d", "v8", 12)).toEqual({ method: "DELETE", path: "/api/directions/d/versions/v8", body: { expectedVersion: 12 } });
+    expect(deleteVersionRequest(RAW_ID, RAW_ID, 1).path).toBe(`/api/directions/${encodeURIComponent(RAW_ID)}/versions/${encodeURIComponent(RAW_ID)}`);
+  },
   regenerateRequest: () => {
     expect(regenerateRequest("d")).toEqual({
       method: "POST",
@@ -499,14 +505,14 @@ const WS18_TIER_A_CASES: Record<string, () => void> = {
     });
     expect(Object.keys(req.body as object)).not.toContain(LEGACY_NOUN);
   },
-  assetRegenerateRequest: () => {
-    const req = assetRegenerateRequest("d", "yak", "face left", { remember: true });
+  assetReviseRequest: () => {
+    const req = assetReviseRequest("d", "yak", "face left", { remember: true });
     expect(req).toEqual({
       method: "POST",
-      path: "/api/actions/asset-regenerate",
+      path: "/api/actions/asset-revise",
       body: { directionId: "d", assetId: "yak", tweak: "face left", remember: true },
     });
-    const bare = assetRegenerateRequest("d", "yak", "face left");
+    const bare = assetReviseRequest("d", "yak", "face left");
     expect(Object.keys(bare.body as object)).not.toContain("remember");
     expect(Object.keys(bare.body as object)).not.toContain(LEGACY_NOUN);
   },
@@ -716,7 +722,7 @@ describe("route hygiene across the WHOLE export set", () => {
       elementFeedbackRequest({ directionId: "d" }).path,
       extractAssetRequest({ directionId: "d" }).path,
       exportAssetPackRequest("d").path,
-      assetRegenerateRequest("d", "a", "t").path,
+      assetReviseRequest("d", "a", "t").path,
       assetRetireRequest("d", "a").path,
       moodboardUploadRequest("d").path,
       moodboardAssetRetireRequest("d", "p").path,
@@ -777,7 +783,7 @@ const sorted = (xs: readonly string[]): string[] => [...xs].sort();
 describe("the five set-equality relations", () => {
   it("(1) the export set EQUALS Tier A (42) ∪ Tier B (5) = 47, and the tiers are disjoint", () => {
     const exported = Object.keys(actions).sort();
-    expect(TIER_A_BUILDERS).toHaveLength(42);
+    expect(TIER_A_BUILDERS).toHaveLength(49);
     expect(TIER_B_BUILDERS).toHaveLength(5);
     expect(exported).toEqual(sorted([...TIER_A_BUILDERS, ...TIER_B_BUILDERS]));
     const overlap = TIER_A_BUILDERS.filter((n) => TIER_B_BUILDERS.includes(n));
@@ -790,10 +796,10 @@ describe("the five set-equality relations", () => {
   it("(2) Tier A EQUALS the builder-test list EQUALS the 28 + 14 ownership-scope union", () => {
     // The reference endpoint is the UNION of the two ownership scopes'
     // enumerated builders — never WS-18's alone.
-    expect(WS18_TIER_A_BUILDERS).toHaveLength(28);
+    expect(WS18_TIER_A_BUILDERS).toHaveLength(29);
     expect(WS20_TIER_A_BUILDERS).toHaveLength(14);
     expect(sorted(TIER_A_BUILDERS)).toEqual(
-      sorted([...WS18_TIER_A_BUILDERS, ...WS20_TIER_A_BUILDERS]),
+      sorted([...WS18_TIER_A_BUILDERS, ...WS20_TIER_A_BUILDERS, ...BOARD_TIER_A_BUILDERS]),
     );
     // The builder-test list: WS-18's per-builder case keys ∪ WS-20's fourteen
     // (whose per-builder tests live above, untouched).

@@ -15,7 +15,7 @@ import { resolveInitialDirection, writeSelectedDirection } from "./selection.js"
 import type { StudioView } from "./types";
 
 export function App() {
-  const { data, error, loading, reload } = useDashboard();
+  const { data, error, reload } = useDashboard();
   // ONE level of selection (WS-18): the focused direction id, persisted via
   // selection.ts so a reload restores the last-focused direction.
   const [selectedDirectionId, setSelected] = useState<string | null>(null);
@@ -41,10 +41,12 @@ export function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data, selectedDirectionId, visibleIds.join(",")]);
 
-  if (error) {
+  if (error && !data) {
     return <div className="loading">Error loading dashboard: {error}</div>;
   }
-  if (loading || !data) {
+  // Refresh existing data in place: unmounting the workspace resets version,
+  // Board selection and chat whenever a background job completes.
+  if (!data) {
     return <div className="loading">Loading…</div>;
   }
 
@@ -77,6 +79,7 @@ export function App() {
           view={view}
           setView={setView}
         >
+          {error && <div className="errors" role="alert">Dashboard refresh failed: {error}</div>}
           {data.errors.length > 0 && (
             <div className="errors">
               {data.errors.map((e, i) => (
@@ -89,6 +92,7 @@ export function App() {
             (focusedDirection ? (
               <section id="directions" className="section direction-detail-section">
                 <DirectionWorkspace
+                  key={focusedDirection.id}
                   direction={focusedDirection}
                   directions={visibleDirections}
                   approved={approved}

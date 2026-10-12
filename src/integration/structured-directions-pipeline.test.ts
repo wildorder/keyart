@@ -223,7 +223,6 @@ function goLive(): void {
             texture: "Matte surfaces with a faint paper grain.",
             rhythm: "Steady, unhurried pacing with deliberate pauses.",
           },
-          homepageMockupPrompt: "A dark homepage mockup.",
           styleTilePrompt: "A dark style tile printing a labeled palette panel.",
           copyExamples: { headline: "Ship it", subheadline: "After dark", cta: "Start" },
           // Imperative rules that reference ROLES, never raw hexes (SC-08).

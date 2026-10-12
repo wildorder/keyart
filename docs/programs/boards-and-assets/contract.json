@@ -1,0 +1,528 @@
+{
+  "schemaVersion": 1,
+  "programId": "prog_01M4KQPM9KSM1T55HH1TDCAG23",
+  "status": "planning",
+  "objective": "Rework Keyart's actions so a creator can explore a direction through any number of boards, iterate one board independently, and create usable assets through extraction or direct generation without confusing exploration with changes to the brand's source of truth.",
+  "repository": {
+    "url": "https://github.com/wildorder/keyart.git",
+    "baseBranch": "main",
+    "programBranch": "program/boards-and-assets"
+  },
+  "createdAt": "2026-10-10T20:25:00.000Z",
+  "setup": [
+    {
+      "id": "install",
+      "command": "npm ci --prefer-offline"
+    },
+    {
+      "id": "browser",
+      "command": "npx playwright install --with-deps --only-shell chromium"
+    }
+  ],
+  "scope": {
+    "includes": [
+      "src/**",
+      "docs/**",
+      "templates/**",
+      "package.json",
+      "package-lock.json",
+      "tsconfig*.json",
+      "vite.config.ts",
+      "vitest.config.ts",
+      ".github/workflows/ci.yml",
+      "README.md",
+      "AGENTS.md"
+    ],
+    "excludes": [],
+    "forbiddenActions": [
+      "Publish, tag, deploy or push",
+      "Run the implementation before human ratification",
+      "Overwrite unrelated working-tree changes"
+    ]
+  },
+  "constraints": [
+    "Local filesystem storage, existing Origin/Host guards and agent confirmation gates remain mandatory.",
+    "All model calls use src/openai.ts; underlying commands preserve keyless prompt/file workflows.",
+    "Direction-scoped memory must not leak between directions.",
+    "Historical renders and approved token versions must not be silently overwritten.",
+    "Each direction version couples its brief snapshot, authoritative style tile and derived tokens. Boards never become automatic token sources.",
+    "A Board is a persistent direction-owned record with a brief; each append-only BoardRevision references an explicit DirectionVersion. Revise board takes an independent source revision and target direction version; target defaults to latest head, allows older versions, and is resolved once before confirmation. The resolved target foundation is authoritative.",
+    "Updating boards to a named direction version is explicit: generate a new revision for each active board while retaining board intent and previous history. Missing renders for a direction version are legal.",
+    "No board update implicitly changes assets, the approved pointer, guides, CSS or surface bindings.",
+    "Historical foundation content is immutable. A missing or dry-run tile is reported honestly, never borrowed from a different version and labeled current.",
+    "New generation requests resolve and pin direction/version and source revision before confirmation; changing focus or head cannot retarget an approved request.",
+    "Board-local instructions do not become direction-wide memory. Existing global hard-rule precedence and direction memory retirement remain effective.",
+    "Keep the existing three MCP capability facades and the local-only serve/chat boundary; no per-command MCP tool expansion.",
+    "Preserve the landed studio layout. No new dependencies, hosting, production image calls, package release or general-purpose job infrastructure are authorized.",
+    "Default medium risk; persistence, historical-version immutability and confirmation-boundary work are high risk and require the org examination policy.",
+    "D-05 is a clean break: ship no migration command or permanent legacy reader. Document a one-time agent-led migration with backup and validation; never silently rewrite or delete old data. Migrating the actual consuming project is outside this program."
+  ],
+  "stories": [
+    {
+      "id": "US-01",
+      "who": "A creator exploring a brand direction with the Keyart agent",
+      "problem": "The agent can extract or regenerate assets, but cannot add an Instagram exploration board alongside the direction's existing examples.",
+      "outcome": "The creator can ask for additional exploratory boards with arbitrary subjects and purposes, without replacing previous examples.",
+      "words": [
+        "but now i basicaly want to add any number of those boards as exploration. like the instagram asset board."
+      ]
+    },
+    {
+      "id": "US-02",
+      "who": "A creator iterating and handing off brand work",
+      "problem": "Regenerate conflates revising an example with advancing the whole direction, while asset creation assumes extraction.",
+      "outcome": "The creator can distinguish exploring an application, revising one board, changing the brand direction, and producing a usable asset.",
+      "words": [
+        "i feel like we have \"boards\" and \"assets\". assets get extracted and used places. boards are samples or high level concepts."
+      ]
+    }
+  ],
+  "successCriteria": [
+    {
+      "id": "SC-01",
+      "outcome": "A request for an Instagram exploration board creates an additional named board on the focused direction, accessible beside existing boards without requiring a crop.",
+      "serves": [
+        "US-01"
+      ]
+    },
+    {
+      "id": "SC-02",
+      "outcome": "A creator can revise one selected board without regenerating all other boards; prior renders remain accessible.",
+      "serves": [
+        "US-01",
+        "US-02"
+      ]
+    },
+    {
+      "id": "SC-03",
+      "outcome": "Boards distinguish their exploratory purpose from usable assets; an asset can originate from extraction or direct generation and keeps its provenance.",
+      "serves": [
+        "US-02"
+      ]
+    },
+    {
+      "id": "SC-04",
+      "outcome": "Adding or revising a board does not silently alter the authoritative style tile, tokens or approved outputs. Revising the direction produces a new coupled brief/tile/token version.",
+      "serves": [
+        "US-02"
+      ]
+    },
+    {
+      "id": "SC-05",
+      "outcome": "The action vocabulary and output reporting agree across CLI, MCP, studio and chat, with readable target and scope before a mutation.",
+      "serves": [
+        "US-01",
+        "US-02"
+      ]
+    },
+    {
+      "id": "SC-06",
+      "outcome": "Update boards to v5 targets all active boards in the selected direction, preserves their individual instructions, reports every success/pending/failure, and can retry unfinished entries without duplicating successful revisions. Retired boards and assets are untouched.",
+      "serves": [
+        "US-01",
+        "US-02"
+      ]
+    },
+    {
+      "id": "SC-07",
+      "outcome": "Every board and asset generation uses the explicitly selected foundation's tile and frozen brief/tokens as authority. Prior output is only a secondary reference; a changed head or live brief cannot silently change the foundation.",
+      "serves": [
+        "US-01",
+        "US-02"
+      ]
+    },
+    {
+      "id": "SC-08",
+      "outcome": "The new format is documented with a one-time agent migration checklist covering backup, record/artifact mapping, truthful provenance, history/approval validation and rollback. Unsupported old records receive helpful non-mutating errors; no automatic migration, deletion or permanent legacy reader ships.",
+      "serves": [
+        "US-02"
+      ]
+    },
+    {
+      "id": "SC-09",
+      "outcome": "New board and asset workflows run without a key using saved prompts and honest pending outputs; mocked-model tests and browser tests prove security guards, exact target confirmation, isolation, history and partial failure without paid services.",
+      "serves": [
+        "US-01",
+        "US-02"
+      ]
+    },
+    {
+      "id": "SC-10",
+      "outcome": "The agreed gate repairs are present and the program passes build, typecheck and tests in a clean checkout, including React .tsx type coverage and no fixture cleanup racing an active job.",
+      "serves": [
+        "US-01",
+        "US-02"
+      ]
+    }
+  ],
+  "outOfScope": [
+    "Social publishing, campaign scheduling, analytics and account integrations",
+    "A general-purpose editable design canvas",
+    "Claims that generated raster compositions are editable production templates",
+    "Automatic adoption of a board as brand authority or automatic board/asset regeneration after foundation changes",
+    "A new memory scope, redesigned surface taxonomy, Figma integration or multi-provider model abstraction",
+    "A studio layout redesign or changes to publishing infrastructure",
+    "A built-in migration command or permanent legacy-format compatibility layer; performing migration in the existing consuming project"
+  ],
+  "strands": [
+    {
+      "id": "S-00",
+      "name": "Gate health",
+      "scope": {
+        "summary": "Approved UI typecheck coverage and asynchronous fixture cleanup repairs",
+        "includes": [
+          "package.json",
+          "tsconfig*.json",
+          ".github/workflows/ci.yml",
+          "src/ui/**"
+        ],
+        "excludes": [
+          "src/asset/**",
+          "src/board/**",
+          "src/direction/**"
+        ]
+      },
+      "acceptance": [
+        "Implement the human's D-06 and D-07 answers without disabling strictness or suppressing tests.",
+        "Async route tests wait for owned jobs to finish before restoring mocks or removing fixtures, including failure paths.",
+        "nightshift gates boards-and-assets passes after the repaired gate machinery lands; record refreshed health."
+      ],
+      "successCriteria": [
+        "SC-10"
+      ],
+      "dependsOn": [],
+      "prerequisites": []
+    },
+    {
+      "id": "S-01",
+      "name": "Expand the immutable foundation boundary",
+      "scope": {
+        "summary": "Additive foundation resolver, version-safe writer and shared source contracts",
+        "includes": [
+          "src/direction/**",
+          "src/brand/**",
+          "src/explore/**",
+          "src/asset/schema.ts",
+          "src/asset/schema.test.ts",
+          "src/openai.ts",
+          "src/openai.test.ts",
+          "src/config.ts",
+          "src/config.test.ts",
+          "src/fs.ts",
+          "src/fs.test.ts",
+          "src/store/**",
+          "src/integration/**",
+          "docs/data-model.md"
+        ],
+        "excludes": [
+          "src/ui/**",
+          "src/mcp/**",
+          "src/agent/**",
+          "src/surface/**"
+        ]
+      },
+      "acceptance": [
+        "Provide an explicit direction/version foundation resolver over existing snapshots, tokens and tile; reject cross-direction or missing versions and distinguish pending image state.",
+        "Provide a foundation-only append path alongside existing callers, retaining image-to-token extraction and explicit user locks, without changing historical bytes or approval.",
+        "Expand source/provenance contracts beside current internal callers so intermediate landings remain green; temporary compatibility is removed in S-04, not shipped as a permanent legacy reader."
+      ],
+      "successCriteria": [
+        "SC-04",
+        "SC-07",
+        "SC-08",
+        "SC-09"
+      ],
+      "dependsOn": [
+        "S-00"
+      ],
+      "prerequisites": []
+    },
+    {
+      "id": "S-02",
+      "name": "Boards and usable asset cores",
+      "scope": {
+        "summary": "Persistent boards, independent revision pipelines and direct assets in the new format",
+        "includes": [
+          "src/board/**",
+          "src/asset/**",
+          "src/direction/**",
+          "src/brand/**",
+          "src/explore/**",
+          "src/surface/fill.ts",
+          "src/surface/fill.test.ts",
+          "src/approve/**",
+          "src/integration/**",
+          "docs/data-model.md"
+        ],
+        "excludes": [
+          "src/ui/**",
+          "src/mcp/**",
+          "src/agent/**",
+          "src/cli.ts"
+        ]
+      },
+      "acceptance": [
+        "Create and revise arbitrary named Boards with durable board intent, append-only revisions, explicit foundation references, non-destructive retirement and conflict-safe writes.",
+        "Revise board accepts an older source revision and an independent target foundation, defaulting the target to latest direction head and allowing an explicit older version. Update boards batches this same operation over a captured active set, retaining intent, per-board results and unfinished-entry retries.",
+        "Implement the new-format records under D-05 without virtual legacy Boards, automatic conversion or a migration command. Unsupported old records produce helpful errors without modifying their files.",
+        "Generate an asset directly or extract from a root image/board revision/crop; both paths append usable asset versions with truthful per-version foundation and origin.",
+        "Asset revision always re-anchors to its selected foundation. Surface fill uses direct generation and keeps slotId matching unchanged; packs expose provenance and never claim stale assets were refreshed.",
+        "Keyless runs save prompts and pending records; failed generations never masquerade as completed renders or advance successful heads."
+      ],
+      "successCriteria": [
+        "SC-01",
+        "SC-02",
+        "SC-03",
+        "SC-06",
+        "SC-07",
+        "SC-08",
+        "SC-09"
+      ],
+      "dependsOn": [
+        "S-00",
+        "S-01"
+      ],
+      "prerequisites": []
+    },
+    {
+      "id": "S-03",
+      "name": "Migrate the action surfaces",
+      "scope": {
+        "summary": "Wire foundation, board and asset intents through CLI, MCP, confirmed chat and the existing studio",
+        "includes": [
+          "src/cli.ts",
+          "src/index.ts",
+          "src/server.ts",
+          "src/commands/**",
+          "src/mcp/**",
+          "src/agent/**",
+          "src/ui/**",
+          "src/board/**",
+          "src/asset/**",
+          "src/explore/**",
+          "src/direction/**",
+          "src/approve/**",
+          "src/integration/**",
+          "templates/**",
+          "docs/data-model.md"
+        ],
+        "excludes": [
+          "src/surface/scan.ts",
+          "src/surface/refine.ts",
+          "src/surface/classify-content.ts",
+          "src/surface/migrations.ts"
+        ]
+      },
+      "acceptance": [
+        "Expose the D-08 vocabulary consistently through registry-derived help/catalog, existing MCP facades, CLI and guarded HTTP; no duplicate business logic or unconfirmed chat writes.",
+        "Create direction starts a separate creative route, optionally using an explicit reference direction. Without a reference, inherit no other direction's brief, imagery or memory; applicable global hard rules still apply. Revise direction appends a foundation version within the same direction. Preserve existing structured direction-create semantics rather than silently repurposing that CLI verb.",
+        "Pin generation version and source revision before confirmation and job launch; focus/head changes cannot retarget the request; stale local instruction edits receive a conflict rather than silent replacement.",
+        "Migrate direction edit/save/regenerate callers to append new foundation versions, never overwrite old content or silently cascade boards/assets. Keep brief-draft edits distinct from realized versions.",
+        "Studio supports create/revise/retire/history for Boards, direct asset generation, source-aware extraction and explicit update-all with target/count/progress/partial outcomes.",
+        "Stage selection and crop attribution use identified foundation/board revision sources; selected-version missing renders are explicit and historical images remain accessible.",
+        "Dashboard remains write-free, guards/path validation remain intact, and the action roster plus browser proofs cover every new mutation without regressing the landed layout."
+      ],
+      "successCriteria": [
+        "SC-01",
+        "SC-02",
+        "SC-03",
+        "SC-04",
+        "SC-05",
+        "SC-06",
+        "SC-07",
+        "SC-08",
+        "SC-09"
+      ],
+      "dependsOn": [
+        "S-00",
+        "S-01",
+        "S-02"
+      ],
+      "prerequisites": []
+    },
+    {
+      "id": "S-04",
+      "name": "Contract the old model and prove the workflow",
+      "scope": {
+        "summary": "Remove superseded fixed-image writes and temporary compatibility, document the one-time migration and verify the user journey",
+        "includes": [
+          "src/**",
+          "docs/**",
+          "templates/**",
+          "README.md",
+          "AGENTS.md"
+        ],
+        "excludes": [
+          "src/surface/scan.ts",
+          "src/surface/refine.ts",
+          "src/surface/classify-content.ts",
+          "src/surface/migrations.ts"
+        ]
+      },
+      "acceptance": [
+        "No active writer still overwrites historical direction content or generates a hidden fixed trio during foundation revision; any starter examples are ordinary Boards created through the shared core.",
+        "Remove temporary legacy adapters and redundant production generation paths after internal callers migrate. Supply the D-05 agent migration checklist and fixture-based validation examples; preserve unsupported files unchanged.",
+        "A network-free proof covers create v1, add Instagram board, local revise, generate and extract assets, revise foundation to v2, update all boards with a partial failure/retry, and approve without altering old bytes or implicitly revising assets.",
+        "Browser coverage proves focus/version/source fidelity, empty and pending states, histories, confirmation and guard failures; package/integration gates still pass.",
+        "Documentation distinguishes style tile, evocative Board, deterministic token specimen, Asset and AssetRef, and teaches selected commands, the clean-break format and safe one-time migration."
+      ],
+      "successCriteria": [
+        "SC-01",
+        "SC-02",
+        "SC-03",
+        "SC-04",
+        "SC-05",
+        "SC-06",
+        "SC-07",
+        "SC-08",
+        "SC-09",
+        "SC-10"
+      ],
+      "dependsOn": [
+        "S-00",
+        "S-01",
+        "S-02",
+        "S-03"
+      ],
+      "prerequisites": []
+    }
+  ],
+  "prerequisites": [],
+  "decisions": [
+    {
+      "id": "D-01",
+      "question": "What defines the authoritative foundation and how does it evolve?",
+      "options": [
+        "Coupled brief, authoritative style tile and tokens evolve as direction versions; boards follow an explicit version.",
+        "Any board can become the token source.",
+        "Every foundation change creates a separate direction."
+      ],
+      "leaning": "Coupled brief, authoritative style tile and tokens evolve as direction versions; boards follow an explicit version.",
+      "answer": "Coupled brief, authoritative style tile and tokens evolve as direction versions; boards follow an explicit version.",
+      "rationale": "The human requires an authoritative root to prevent iterative drift and explicitly rejected creating a new direction for a green-to-blue change.",
+      "touches": [
+        "S-01",
+        "S-02",
+        "S-03",
+        "S-04"
+      ]
+    },
+    {
+      "id": "D-02",
+      "question": "Should usable assets support direct creation as well as extraction?",
+      "options": [
+        "Yes: both creation paths yield versioned usable assets.",
+        "Limit assets to extraction and keep all newly generated work as boards."
+      ],
+      "leaning": "Yes: both creation paths yield versioned usable assets.",
+      "answer": "Yes: both creation paths yield versioned usable assets.",
+      "rationale": "An asset is defined by intended use, not whether it originated in a crop. This also addresses the initial request.",
+      "touches": [
+        "S-01",
+        "S-02",
+        "S-03",
+        "S-04"
+      ]
+    },
+    {
+      "id": "D-03",
+      "question": "Which committed baseline should the program build on?",
+      "options": [
+        "main after the current studio-layout work has landed",
+        "The current studio-layout branch after its pending edits are committed"
+      ],
+      "leaning": "main after the current studio-layout work has landed",
+      "answer": "main after the current studio-layout work has landed",
+      "rationale": "The human instructed landing the current studio layout. PR #1 merged it into main at 4e4d820, which is this program's baseline.",
+      "touches": [
+        "S-00",
+        "S-01",
+        "S-02",
+        "S-03",
+        "S-04"
+      ]
+    },
+    {
+      "id": "D-04",
+      "question": "How do persistent boards relate to direction versions and requested updates?",
+      "options": [
+        "Direction-owned Boards with append-only BoardRevisions keyed to DirectionVersion; explicitly update all active boards to a named version.",
+        "A fixed set of images regenerated automatically on every direction revision."
+      ],
+      "leaning": "Direction-owned Boards with append-only BoardRevisions keyed to DirectionVersion; explicitly update all active boards to a named version.",
+      "answer": "Direction-owned Boards with append-only BoardRevisions keyed to DirectionVersion; explicitly update all active boards to a named version.",
+      "rationale": "The human described persistent places for boards across foundation versions, optional filling, and an explicit update-to-v5 request. They approved Board as the product and code term instead of application board or Slot; revisions preserve previous renders.",
+      "touches": [
+        "S-01",
+        "S-02",
+        "S-03",
+        "S-04"
+      ]
+    },
+    {
+      "id": "D-05",
+      "question": "How should existing generated homepage/style-board images and extracted assets survive the new model?",
+      "options": [
+        "Built-in migration with permanent legacy read compatibility",
+        "Clean break with documented one-time agent-led migration in the sole existing project"
+      ],
+      "leaning": "Clean break with documented one-time agent-led migration in the sole existing project",
+      "rationale": "The human has only one consuming project and approved delegating its migration to an agent there. Avoid a permanent compatibility burden; document backup, migration and validation, and never silently delete or rewrite old data.",
+      "touches": [
+        "S-01",
+        "S-02",
+        "S-03",
+        "S-04"
+      ],
+      "answer": "Clean break with documented one-time agent-led migration in the sole existing project"
+    },
+    {
+      "id": "D-06",
+      "question": "Include React .tsx files in the actual typecheck gate before adding board UI?",
+      "options": [
+        "Add UI typechecking and repair revealed errors",
+        "Keep current gates; consciously leave React type coverage out"
+      ],
+      "leaning": "Add UI typechecking and repair revealed errors",
+      "answer": "Add UI typechecking and repair revealed errors",
+      "rationale": "The human explicitly approved adding React typechecking and fixing the existing errors before building board UI. Root tsconfig includes only .ts; a separate bundler/react-jsx diagnostic reports 18 errors, including JSX namespace annotations and capture request typing. Close this gate-standard rule 6 coverage gap without changing the studio design or weakening strictness.",
+      "touches": [
+        "S-00",
+        "S-03",
+        "S-04"
+      ]
+    },
+    {
+      "id": "D-07",
+      "question": "Repair the baseline asynchronous route-test cleanup race in this program?",
+      "options": [
+        "Wait for owned jobs to settle before teardown; repair in S-00",
+        "Defer repair to another program and leave this run blocked on the baseline gate"
+      ],
+      "leaning": "Wait for owned jobs to settle before teardown; repair in S-00",
+      "answer": "Wait for owned jobs to settle before teardown; repair in S-00",
+      "rationale": "The human approved this test-only repair before building. The fresh audit failed POST /api/actions/explore with ENOTEMPTY because the test never joins its background job before fixture cleanup. Await terminal job state before teardown, including assertion-failure paths; do not mask the race with sleeps or retries (gate-standard rules 2 and 5).",
+      "touches": [
+        "S-00",
+        "S-03",
+        "S-04"
+      ]
+    },
+    {
+      "id": "D-08",
+      "question": "What action vocabulary, board revision defaults and batch semantics should the product expose?",
+      "options": [
+        "Create or Revise direction; Create or Revise board with selectable foundation defaulting to latest; Update boards batches that same revision operation; Generate, Extract or Revise asset; Approve a direction version",
+        "Keep Regenerate direction terminology and implicitly retain the source board's foundation during revision"
+      ],
+      "leaning": "Create or Revise direction; Create or Revise board with selectable foundation defaulting to latest; Update boards batches that same revision operation; Generate, Extract or Revise asset; Approve a direction version",
+      "answer": "Create or Revise direction; Create or Revise board with selectable foundation defaulting to latest; Update boards batches that same revision operation; Generate, Extract or Revise asset; Approve a direction version",
+      "rationale": "The human accepted the action model but replaced Regenerate direction with distinct Create (optionally referenced, otherwise fresh) and Revise intents. They explicitly requested a direction-version input on Revise board, default latest with older versions selectable, and agreed Update boards is batch revision rather than a separate generation capability. Source revision and target foundation are independent, every result appends history, and resolved ids are displayed and pinned before confirmation.",
+      "touches": [
+        "S-02",
+        "S-03",
+        "S-04"
+      ]
+    }
+  ]
+}

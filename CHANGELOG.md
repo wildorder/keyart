@@ -14,6 +14,36 @@ listed under **Changed** or **Removed** with a migration note. Per
 
 Nothing yet.
 
+## [0.2.0] — 2026-10-12
+
+### Added
+
+- Named Boards with independent, append-only revisions and resumable batch updates.
+- Direct asset generation and exact-source extraction from foundations, Boards, or crops.
+- Permanent foundation-version deletion without deleting dependent artwork; explicit
+  replacement selection only when a later asset revision needs a missing foundation.
+- Chat crop attachments with visual context, pinned provenance, and intent-based
+  extraction, visual feedback, or foundation revision behind the approval gate.
+
+### Changed
+
+- **Breaking:** foundations now generate one authoritative style tile; application
+  imagery lives in Boards. Assets use format version 2. Existing projects require
+  the [one-time migration checklist](docs/migration-0.2.md) before upgrading;
+  there is no automatic migration. Imported artwork retains unverified provenance.
+- Foundation edits append versions rather than overwriting historical content.
+- Chat presents one action card through approval, progress, and completion, with
+  accurate output summaries and links to generated assets.
+- Gallery history/provenance is collapsed below the artwork.
+- Release and CI gates type-check the studio and exercise its built browser UI.
+
+### Fixed
+
+- Generation refreshes no longer reset the viewed foundation to the latest version.
+- Consumed approval controls cannot be reused or double-submitted.
+- Crops now reach chat and extraction instead of being ignored.
+- Upgrade vulnerable MCP and test-runner dependencies and refresh patched transitives.
+
 ## [0.1.0] — first public release
 
 The initial npm publication. Everything below describes the shipped surface
@@ -59,5 +89,6 @@ rather than a diff against a prior release, since there is no prior release.
   layer: it was replaced wholesale by directions with no migrator. `keyart
   init` scaffolds only the direction layout (`brand/directions/<id>/`).
 
-[Unreleased]: https://github.com/wildorder/keyart/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/wildorder/keyart/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/wildorder/keyart/compare/v0.1.1...v0.2.0
 [0.1.0]: https://github.com/wildorder/keyart/releases/tag/v0.1.0

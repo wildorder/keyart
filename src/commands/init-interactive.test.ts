@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach, type MockInstance } from "vitest";
 import fs from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
@@ -14,7 +14,7 @@ vi.mock("../config.js", async (importOriginal) => {
 const TEST_KEY = "sk-test-abcdefgood-key";
 
 let tmpDir: string;
-let logSpy: ReturnType<typeof vi.spyOn>;
+let logSpy: MockInstance<typeof console.log>;
 
 /**
  * Fake WizardIO that returns `answers` in order and records every prompt string

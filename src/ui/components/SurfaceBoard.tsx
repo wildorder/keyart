@@ -11,7 +11,7 @@
  * single-slot add form, both through the validated versioned `/api/surface`
  * routes with teaching rejections surfaced verbatim.
  */
-import React, { useState } from "react";
+import React, { useState, type JSX } from "react";
 import type { DashboardSurface, DashboardSurfaceSlot } from "../types";
 import {
   orderSurfaceSlots,

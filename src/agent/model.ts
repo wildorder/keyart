@@ -34,6 +34,7 @@ export type CompletionChunk =
 /** The OpenAI-shaped message history the seam sends. */
 export type ChatMessage =
   | { role: "system" | "user" | "assistant"; content: string }
+  | { role: "user"; content: string; imageUrl: string }
   | { role: "assistant"; content: null; toolCalls: ToolCall[] }
   | { role: "tool"; toolCallId: string; content: string };
 
@@ -49,7 +50,16 @@ export interface PendingApproval {
 export interface ChatContext {
   directionId: string;
   versionId?: string;
+  boardId?: string;
+  revisionId?: string;
+  /** Validated server-owned attachment; never populated directly from client context. */
+  attachment?: ChatAttachment;
 }
+
+export type ChatVisualSource =
+  | { kind: "foundation"; directionId: string; versionId: string }
+  | { kind: "board"; directionId: string; versionId: string; boardId: string; revisionId: string };
+export interface ChatAttachment { path: string; dataUrl: string; source: ChatVisualSource }
 
 /**
  * The one model seam — STREAMING. Injectable; the only place the loop
@@ -75,6 +85,9 @@ function toOpenAIMessages(
   messages: ChatMessage[],
 ): Array<Record<string, unknown>> {
   return messages.map((m) => {
+    if (m.role === "user" && "imageUrl" in m) {
+      return { role: "user", content: [{ type: "text", text: m.content }, { type: "image_url", image_url: { url: m.imageUrl } }] };
+    }
     if (m.role === "tool") {
       return { role: "tool", tool_call_id: m.toolCallId, content: m.content };
     }

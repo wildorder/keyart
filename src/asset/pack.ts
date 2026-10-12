@@ -17,8 +17,9 @@ import {
   listAssetIds,
   readAssetIndex,
   readAssetHead,
+  readAssetLatestAttempt,
 } from "./asset-store.js";
-import { isExtractedAssetRetired, type ExtractedAssetIndex } from "./schema.js";
+import { isExtractedAssetRetired, type ExtractedAssetIndex, type AssetFoundation, type AssetProvenance, type AssetVersion } from "./schema.js";
 import { resolveBrandVars } from "../approve/render-guides.js";
 import { renderDtcgTokens } from "./render-dtcg-tokens.js";
 import {
@@ -49,6 +50,9 @@ export interface PackedAsset {
   name: string;
   description: string;
   pending: boolean;
+  foundation: AssetFoundation;
+  provenance: AssetProvenance;
+  conditioning: AssetVersion["conditioning"];
   /** Pack-dir-relative filename (`<id>.png`) — absent while pending. */
   file?: string;
 }
@@ -62,6 +66,18 @@ export interface AssetPackResult {
   packDir: string;
   /** Per-asset detail for downstream projections (the approve-codified guides). */
   assets: PackedAsset[];
+}
+
+/** Read-only validation shared by pack and approval before either writes outputs. */
+export async function preflightAssetPack(directionDir: string): Promise<Array<{ index: ExtractedAssetIndex; head: AssetVersion }>> {
+  const selected: Array<{ index: ExtractedAssetIndex; head: AssetVersion }> = [];
+  for (const id of await listAssetIds(directionDir)) {
+    const index = await readAssetIndex(directionDir, id);
+    if (isExtractedAssetRetired(index)) continue;
+    const head = index.head ? await readAssetHead(directionDir, id) : await readAssetLatestAttempt(directionDir, id);
+    selected.push({ index, head });
+  }
+  return selected;
 }
 
 export async function runAssetPack(
@@ -95,14 +111,7 @@ export async function runAssetPack(
   // never destructively. Every asset under this direction's own tree already
   // belongs to it (scope is location) — the `directionId` check is a
   // defensive assertion, not a cross-direction filter.
-  const ids = await listAssetIds(direction.dir);
-  const active: ExtractedAssetIndex[] = [];
-  for (const id of ids) {
-    const index = await readAssetIndex(direction.dir, id);
-    if (isExtractedAssetRetired(index)) continue;
-    if (index.directionId !== directionId) continue;
-    active.push(index);
-  }
+  const selected = await preflightAssetPack(direction.dir);
 
   // Resolve the token-bearing direction version: the PINNED version when the
   // pack direction is the approved one (so the pack ships the approved
@@ -114,6 +123,8 @@ export async function runAssetPack(
   const generatedFrom = version.id;
   const vars = resolveBrandVars(version);
 
+  // Validate every version before replacing an existing projection. Unsupported
+  // historical records must leave both source data and the prior pack untouched.
   // The pack dir is a pure projection of current state: delete-then-recreate
   // so a PNG from a since-retired asset never lingers (double-run
   // byte-equality is a folder-level claim).
@@ -134,8 +145,7 @@ export async function runAssetPack(
   const manifestAssets: Record<string, unknown>[] = [];
   const packedAssets: PackedAsset[] = [];
 
-  for (const index of active) {
-    const head = await readAssetHead(direction.dir, index.id);
+  for (const { index, head } of selected) {
     const headPngPath = path.join(
       direction.dir,
       "extracted-assets",
@@ -144,7 +154,7 @@ export async function runAssetPack(
       head.id,
       "asset.png",
     );
-    const hasImage = await pathExists(headPngPath);
+    const hasImage = head.status === "completed" && await pathExists(headPngPath);
     if (hasImage) {
       const dest = path.join(packDir, `${index.id}.png`);
       await copyFileSafe(headPngPath, dest);
@@ -160,7 +170,10 @@ export async function runAssetPack(
       description: head.description,
       versionId: head.id,
       hasImage,
-      source: head.source,
+      foundation: head.foundation,
+      provenance: head.provenance,
+      conditioning: head.conditioning,
+      status: head.status,
     });
 
     manifestAssets.push({
@@ -168,7 +181,10 @@ export async function runAssetPack(
       name: index.name,
       description: head.description,
       headVersionId: head.id,
-      source: head.source,
+      foundation: head.foundation,
+      provenance: head.provenance,
+      conditioning: head.conditioning,
+      status: head.status,
       pending: !hasImage,
       // The packed filename, stated explicitly so a consumer never has to
       // infer the `<assetId>.png` convention; absent while pending.
@@ -181,6 +197,9 @@ export async function runAssetPack(
       description: head.description,
       pending: !hasImage,
       ...(hasImage ? { file: `${index.id}.png` } : {}),
+      foundation: head.foundation,
+      provenance: head.provenance,
+      conditioning: head.conditioning,
     });
   }
 

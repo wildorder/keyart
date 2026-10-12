@@ -11,12 +11,13 @@
  * empty state instead of the gallery: brief form + moodboard dropzone, with
  * the chrome's single **Generate v1** CTA above them.
  */
-import React, { useState } from "react";
+import React, { useState, type JSX } from "react";
 import { createPortal } from "react-dom";
 import type {
   ApprovedDirection,
   DashboardDirection,
   DashboardGlobal,
+  VisualFocus,
 } from "../types";
 import { DirectionGallery, type CompareControls } from "./DirectionGallery";
 import { DirectionChrome } from "./DirectionChrome";
@@ -64,6 +65,7 @@ export function DirectionWorkspace({
   // The version the user is actually VIEWING in the segmented version
   // switcher, for the chat rail to inherit. null ⇒ head.
   const [focusedVersionId, setFocusedVersionId] = useState<string | null>(null);
+  const [focusedSource, setFocusedSource] = useState<VisualFocus | null>(null);
   // The version on screen — its description heads the page. null ⇒ a draft.
   const viewedVersion =
     direction.versions.find((v) => v.versionId === focusedVersionId) ??
@@ -113,6 +115,9 @@ export function DirectionWorkspace({
         version,
         isHead: version.versionId === owner.head,
         approved: isPinnedVersion(directionId, versionId),
+        boards: owner.boards,
+        versions: owner.versions,
+        latestVersionId: owner.head ?? version.versionId,
       };
     })
     .filter((x): x is CompareItem => x !== null);
@@ -164,10 +169,11 @@ export function DirectionWorkspace({
                   onSelectedVersionChange={(version) =>
                     setFocusedVersionId(version.versionId)
                   }
+                  onSourceChange={setFocusedSource}
                 />
-                <AssetShelf direction={direction} reload={reload} />
               </>
             )}
+            <AssetShelf direction={direction} focusedVersionId={viewedVersion?.versionId ?? null} reload={reload} />
 
             {compare.length > 0 && (
               <div className="compare-bar" role="region" aria-label="Compare selection">
@@ -213,6 +219,7 @@ export function DirectionWorkspace({
               directionId={direction.id}
               direction={direction}
               focusedVersionId={focusedVersionId}
+              focusedSource={focusedSource}
               pointer={pointer}
               reload={reload}
             />,

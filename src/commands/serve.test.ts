@@ -193,6 +193,7 @@ describe("createApiMounts (SC-03/SC-14)", () => {
       const prefixes = mounts.map((m) => m.prefix);
       expect(prefixes).toEqual([
         "/api", // local-only guard
+        "/api", // Board routes precede direction/action catchalls
         "/api", // reconciliation GETs (before createWriteApi)
         "/api", // write api
         "/api", // tokens

@@ -23,8 +23,7 @@ const SAMPLE_DIRECTION: DirectionContent = {
   character: {
     mood: "High-contrast palette, geometric sans-serif typography, generous whitespace, bold accent colors.",
   },
-  homepageMockupPrompt:
-    "Design a bold, modern homepage mockup with geometric shapes.",
+
   styleTilePrompt:
     "Create a style tile for a bold, modern brand with color swatches.",
   copyExamples: {

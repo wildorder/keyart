@@ -28,6 +28,24 @@ afterEach(async () => {
 });
 
 describe("createFileSingleDocStore", () => {
+  it("serializes independent writers so only one stale-version write can win", async () => {
+    const filePath = path.join(tmpDir, "concurrent.yaml");
+    const first = createFileSingleDocStore({ filePath, parse });
+    const second = createFileSingleDocStore({ filePath, parse });
+    await first.write({ version: 0, value: "initial" });
+    const results = await Promise.allSettled([
+      first.write({ version: 1, value: "first" }, { expectedVersion: 1 }),
+      second.write({ version: 1, value: "second" }, { expectedVersion: 1 }),
+    ]);
+    expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    const rejected = results.find((r) => r.status === "rejected");
+    expect(rejected?.status === "rejected" && rejected.reason).toBeInstanceOf(VersionConflictError);
+    expect((await first.read())?.version).toBe(2);
+    // A rejected transaction releases the lock for a subsequent valid write.
+    await expect(first.write({ version: 2, value: "next" }, { expectedVersion: 2 }))
+      .resolves.toEqual({ version: 3, value: "next" });
+  });
+
   it("creates then reads back a versioned document", async () => {
     const filePath = path.join(tmpDir, "doc.yaml");
     const store = createFileSingleDocStore({ filePath, parse });

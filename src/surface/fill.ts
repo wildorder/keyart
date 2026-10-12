@@ -4,12 +4,12 @@ import { loadConfig } from "../config.js";
 import { gatherBindInputs, resolveSlots } from "./bind.js";
 import { isAssetSlot, isSlotRetired, slotById, type SurfaceSlot } from "./schema.js";
 import { resolveDirection } from "../direction/store.js";
-import { runAssetExtract } from "../asset/extract.js";
+import { runAssetGenerate } from "../asset/extract.js";
 import { setExtractedAssetSlotId, extractedAssetsRoot } from "../asset/asset-store.js";
 
 /**
  * Close asset-slot gaps IN-IDIOM (surface-manifest WS-04): every fill is an
- * ORDINARY `ExtractedAsset` minted through the EXISTING `runAssetExtract`
+ * ORDINARY `ExtractedAsset` minted through the direct `runAssetGenerate`
  * describe path, against the approved direction's PINNED version, with the
  * slot id stamped as provenance via `setExtractedAssetSlotId` so the very
  * next `surface bind` resolves it. Never touches `src/asset/extract.ts`,
@@ -24,7 +24,7 @@ function relTo(cwd: string): (abs: string) => string {
 }
 
 /**
- * Translate a surface slot into the `describe` text handed to runAssetExtract
+ * Translate a surface slot into the `describe` text handed to runAssetGenerate
  * — the slot's description plus its context as imperative prompt intent.
  * PURE and deterministic (no I/O, no clock); the transparent-background
  * isolation directive and the art-direction MUST/PREFER/AVOID block are NOT
@@ -125,12 +125,13 @@ export async function runSurfaceFill(opts: {
   const filesWritten: string[] = [];
 
   for (const slot of targets) {
-    const extract = await runAssetExtract({
+    const extract = await runAssetGenerate({
       cwd: opts.cwd,
       directionId: pointer.directionId,
       versionId: pointer.versionId,
       describe: composeSlotDescribe(slot),
       name: slot.id,
+      slotId: slot.id,
     });
     await setExtractedAssetSlotId(resolvedDirection.dir, extract.assetId, slot.id);
 

@@ -53,6 +53,15 @@ async function collect(iter: AsyncIterable<CompletionChunk>): Promise<Completion
 const SYSTEM: ChatMessage = { role: "system", content: "sys" };
 
 describe("model.ts createComplete", () => {
+  it("sends attached crop pixels as vision input, not merely a pathname", async () => {
+    chatCreate.mockResolvedValue(fakeStream([]));
+    const { createComplete } = await import("./model.js");
+    await collect(createComplete()([SYSTEM, { role: "user", content: "extract this", imageUrl: "data:image/png;base64,abc" }], []));
+    expect(chatCreate.mock.calls[0][0].messages[1].content).toEqual([
+      { type: "text", text: "extract this" },
+      { type: "image_url", image_url: { url: "data:image/png;base64,abc" } },
+    ]);
+  });
   it("streams text-deltas then a done with the assembled turn", async () => {
     chatCreate.mockResolvedValue(
       fakeStream([

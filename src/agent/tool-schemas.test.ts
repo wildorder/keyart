@@ -115,6 +115,23 @@ describe("tool-schemas direction_* names (WS-06)", () => {
 });
 
 describe("tool-schemas name uniqueness", () => {
+  it("derived-output tools expose exact replay source and instruction snapshots", () => {
+    const revise = leafToToolSchema(getLeaf("board_revise")!).function.parameters;
+    expect(revise.required).toEqual(["boardId"]);
+    for (const key of ["direction", "version", "revision", "instruction-version"]) {
+      expect(revise.properties[key].type).toBe("string");
+    }
+    const update = leafToToolSchema(getLeaf("board_update")!).function.parameters;
+    expect(update.properties.captured.type).toBe("string");
+    expect(update.properties.resume.type).toBe("string");
+    const extract = leafToToolSchema(getLeaf("asset_extract")!).function.parameters;
+    expect(extract.properties.board.type).toBe("string");
+    expect(extract.properties.revision.type).toBe("string");
+    for (const tool of ["direction_revise", "regenerate", "asset_generate"]) {
+      expect(leafToToolSchema(getLeaf(tool)!).function.parameters.properties.version.type).toBe("string");
+    }
+  });
+
   it("tool names are unique across the whole schema set", () => {
     const names = listToolSchemas().map((s) => s.function.name);
     expect(new Set(names).size).toBe(names.length);

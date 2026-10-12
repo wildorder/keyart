@@ -24,8 +24,6 @@ function isValidDirection(d: unknown): d is SeedDirection {
   if (typeof obj.summary !== "string" || !obj.summary) return false;
   if (typeof obj.positioning !== "string" || !obj.positioning) return false;
   if (!obj.character || typeof obj.character !== "object") return false;
-  if (typeof obj.homepageMockupPrompt !== "string" || !obj.homepageMockupPrompt)
-    return false;
   if (typeof obj.styleTilePrompt !== "string" || !obj.styleTilePrompt)
     return false;
 

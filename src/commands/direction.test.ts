@@ -876,6 +876,17 @@ describe("direction reject --note", () => {
 });
 
 describe("direction feedback", () => {
+  it("records an attached crop as attributed visual avoidance without a moodboard reference", async () => {
+    await seedDirection("moody");
+    await runDirection({ cwd: tmpDir, verb: "feedback", id: "moody", body: "Never use this mascot again",
+      asset: "brand/chat/crop.png", channel: "visual", polarity: "avoid", author: "user", source: "chat" });
+    const core = createDirectionCore(tmpDir, config);
+    expect(await core.memoryEntries("moody")).toEqual([expect.objectContaining({
+      asset: "brand/chat/crop.png", channel: "visual", polarity: "avoid", author: "user", source: "chat",
+    })]);
+    expect(await core.imageAssetPaths("moody")).toEqual([]);
+  });
+
   it("appends attributed feedback memory", async () => {
     await runDirection({ cwd: tmpDir, verb: "new", id: "moody" });
 
@@ -2053,7 +2064,7 @@ describe("rule remove / edit (WS-04)", () => {
 // ---------------------------------------------------------------------------
 
 describe("DIRECTION_VERBS roster (SC-08 derive-once fence)", () => {
-  it("set-equals the fourteen-verb family; reject/park/revive are first-class", () => {
+  it("set-equals the direction family including foundation revision and deletion", () => {
     expect(new Set(DIRECTION_VERBS)).toEqual(
       new Set([
         "new",
@@ -2062,6 +2073,8 @@ describe("DIRECTION_VERBS roster (SC-08 derive-once fence)", () => {
         "status",
         "fork",
         "create",
+        "revise",
+        "delete-version",
         "archive",
         "reject",
         "park",
@@ -2072,7 +2085,7 @@ describe("DIRECTION_VERBS roster (SC-08 derive-once fence)", () => {
         "reconcile",
       ]),
     );
-    expect(DIRECTION_VERBS).toHaveLength(14);
+    expect(DIRECTION_VERBS).toHaveLength(16);
   });
 });
 

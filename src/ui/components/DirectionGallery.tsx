@@ -21,12 +21,15 @@ import type {
   DashboardDirection,
   DashboardVersion,
   PaletteRole,
+  DashboardBoard,
+  VisualFocus,
 } from "../types";
-import { postJson, isVersionConflict, VERSION_CONFLICT_MESSAGE } from "../hooks";
+import { postJson, deleteJson, isVersionConflict, VERSION_CONFLICT_MESSAGE } from "../hooks";
 import {
   approveRequest,
   regenerateRequest,
   restoreVersionRequest,
+  deleteVersionRequest,
 } from "../direction-actions.js";
 import { DirectionEditor } from "./DirectionEditor";
 import { PaletteBoard } from "./PaletteBoard";
@@ -87,6 +90,7 @@ export function DirectionGallery({
   reload,
   compare,
   onSelectedVersionChange,
+  onSourceChange,
 }: {
   direction: DashboardDirection;
   isPinnedVersion: (directionId: string, versionId: string) => boolean;
@@ -95,9 +99,27 @@ export function DirectionGallery({
   /** Notify the parent when the selected version changes (so the chat rail
    * inherits the VIEWED version, not blindly the head). */
   onSelectedVersionChange?: (version: DashboardVersion) => void;
+  onSourceChange?: (source: VisualFocus | null) => void;
 }) {
   const [selectedVersionId, setSelectedVersionId] = useState(direction.head);
   const [compareMode, setCompareMode] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{ directionId: string; versionId: string; expectedVersion: number } | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const { pushToast } = useToasts();
+  const confirmDelete = async (): Promise<void> => {
+    if (!deleteTarget || deleting) return;
+    setDeleting(true);
+    try {
+      const request = deleteVersionRequest(deleteTarget.directionId, deleteTarget.versionId, deleteTarget.expectedVersion);
+      await deleteJson(request.path, request.body);
+      setDeleteTarget(null);
+      pushToast({ kind: "success", message: "Direction version permanently deleted. Boards and assets were kept." });
+      reload();
+    } catch (error) {
+      pushToast({ kind: "error", message: error instanceof Error ? error.message : "Could not delete version." });
+      if (isVersionConflict(error)) { setDeleteTarget(null); reload(); }
+    } finally { setDeleting(false); }
+  };
 
   // Keep selection valid when versions are appended / reloaded.
   useEffect(() => {
@@ -105,11 +127,8 @@ export function DirectionGallery({
     if (!stillThere) setSelectedVersionId(direction.head);
   }, [direction.versions, direction.head, selectedVersionId]);
 
-  // Prefer following the head when it advances (new regenerate), unless the
-  // user deliberately picked a historical version that still exists.
-  useEffect(() => {
-    setSelectedVersionId(direction.head);
-  }, [direction.head]);
+  // A newly appended head does not change the version being viewed. The
+  // validity check above selects a fallback only if that version disappears.
 
   const versionsHeadFirst = [...direction.versions].reverse();
   const selected =
@@ -138,7 +157,7 @@ export function DirectionGallery({
           <div className="version-pills" role="tablist" aria-label="Version history">
             {versionsHeadFirst.map((v) => {
               const ordinal =
-                direction.versions.findIndex((x) => x.versionId === v.versionId) + 1;
+                v.ordinal ?? direction.versions.findIndex((x) => x.versionId === v.versionId) + 1;
               const pillIsHead = v.versionId === direction.head;
               const pillApproved = isPinnedVersion(direction.id, v.versionId);
               const selectedPill = v.versionId === selected.versionId;
@@ -184,18 +203,26 @@ export function DirectionGallery({
         >
           Compare
         </button>
+        <button type="button" className="btn btn-ghost btn-sm" disabled={approved || deleting}
+          title={approved ? "Approve another version before deleting this approved foundation." : "Permanently delete this foundation version only"}
+          onClick={() => setDeleteTarget({ directionId: direction.id, versionId: selected.versionId, expectedVersion: direction.version })}>Delete version</button>
       </div>
   );
 
   return (
     <div className="direction-gallery">
+      {deleteTarget && <section className="lifecycle-confirm" role="region" aria-label="Confirm direction version deletion">
+        <p>Permanently delete foundation {deleteTarget.versionId} from {deleteTarget.directionId}? Its version files will be removed and cannot be restored. Existing Boards and assets stay unchanged; their historical foundation may no longer be available.</p>
+        <button type="button" className="btn btn-danger btn-sm" disabled={deleting} onClick={confirmDelete}>{deleting ? "Deleting…" : "Permanently delete version"}</button>
+        <button type="button" className="btn btn-ghost btn-sm" disabled={deleting} onClick={() => setDeleteTarget(null)}>Cancel</button>
+      </section>}
       {compareMode && (
         <div className="version-pills-compare-area">
           {(showSwitcher ? versionsHeadFirst : [selected]).map((v) => {
             const compareSelected = compare.isSelected(direction.id, v.versionId);
             const compareDisabled = compare.disabledFor(direction.id, v.versionId);
             const ordinal =
-              direction.versions.findIndex((x) => x.versionId === v.versionId) + 1;
+              v.ordinal ?? direction.versions.findIndex((x) => x.versionId === v.versionId) + 1;
             return (
               <label
                 key={v.versionId}
@@ -231,6 +258,10 @@ export function DirectionGallery({
           approved={approved}
           reload={reload}
           stageHeader={versionBar}
+          boards={direction.boards}
+          versions={direction.versions}
+          latestVersionId={direction.head ?? selected.versionId}
+          onSourceChange={onSourceChange}
         />
       </div>
     </div>
@@ -255,6 +286,10 @@ export function DirectionCardBody({
   approved,
   reload,
   stageHeader,
+  boards,
+  versions,
+  latestVersionId,
+  onSourceChange,
 }: {
   directionId: string;
   version: DashboardVersion;
@@ -264,6 +299,10 @@ export function DirectionCardBody({
   /** Rendered at the start of the gallery stage's header (the inline
    * gallery puts its version switcher here). Absent → the plain stage title. */
   stageHeader?: React.ReactNode;
+  boards?: DashboardBoard[];
+  versions?: DashboardVersion[];
+  latestVersionId?: string;
+  onSourceChange?: (source: VisualFocus | null) => void;
 }) {
   const { pushToast } = useToasts();
   const [editOpen, setEditOpen] = useState(false);
@@ -288,7 +327,7 @@ export function DirectionCardBody({
   // overlay's card is fully self-contained.
   const approve = useAction(reload);
 
-  const hasImage = Boolean(images?.styleTile || images?.homepageMockup);
+  const hasImage = Boolean(images?.styleTile);
 
   /** Map locked roles to their CURRENT hexes off the version's tokens. */
   const colorsFor = (roles: PaletteRole[]): { role: PaletteRole; hex: string }[] => {
@@ -311,11 +350,12 @@ export function DirectionCardBody({
    * The ONE regenerate convergence point (SC-08): all four iterate gestures feed
    * it — lock (roles held verbatim), clip/keep + discard (already persisted to
    * direction memory via ElementFeedback, consumed server-side), and generic
-   * feedback (this-pass art direction). Regenerate reads the direction's HEAD and
+   * feedback (this-pass art direction). Revise pins the displayed foundation and
    * APPENDS a new version (never overwrites).
    */
   const startRegen = (): void => {
     const req = regenerateRequest(directionId, {
+      versionId: version.versionId,
       feedback: regenFeedback.trim() || undefined,
       lockedRoles,
       lockedColors: colorsFor(lockedRoles),
@@ -330,6 +370,7 @@ export function DirectionCardBody({
     colors: { role: PaletteRole; hex: string }[],
   ): void => {
     const req = regenerateRequest(directionId, {
+      versionId: version.versionId,
       lockedRoles: roles,
       lockedColors: colors,
     });
@@ -348,7 +389,6 @@ export function DirectionCardBody({
         positioning: version.positioning,
         character: version.character,
         styleTilePrompt: version.styleTilePrompt,
-        homepageMockupPrompt: version.homepageMockupPrompt,
         usage: version.usage,
         copyExamples: version.copyExamples,
         ...(version.tokens ? { tokens: version.tokens } : {}),
@@ -382,6 +422,10 @@ export function DirectionCardBody({
         directionId={directionId}
         onFeedbackDone={reload}
         headerStart={stageHeader}
+        boards={boards}
+        versions={versions}
+        latestVersionId={latestVersionId}
+        onSourceChange={onSourceChange}
       />
 
       {/* The deterministic palette + type board, straight from the tokens
@@ -439,12 +483,12 @@ export function DirectionCardBody({
               onClick={() => setRegenOpen((o) => !o)}
             >
               {regen.running
-                ? "Regenerating…"
+                ? "Revising…"
                 : regenOpen
                   ? "Cancel"
                   : hasImage
-                    ? "Regenerate visuals…"
-                    : "Generate visuals…"}
+                    ? "Revise direction…"
+                    : "Generate foundation…"}
             </button>
           )}
           {isHead && (
@@ -475,11 +519,9 @@ export function DirectionCardBody({
             <p className="field-hint">
               One loop: <strong>crop</strong> a region on the stage above,{" "}
               <strong>lock</strong> swatches on the board, add a{" "}
-              <strong>note</strong>, then <strong>Regenerate</strong>. It re-renders
-              both graphics from the brief + your locked colors + kept crops +
-              discard notes, then re-extracts the unlocked tokens from the new style
-              tile and appends a new version. The direction&apos;s text and copy are
-              left untouched.
+              <strong>note</strong>, then <strong>Revise direction</strong>. This appends
+              a new foundation tile and extracts its tokens. Boards and assets change
+              only when you explicitly revise or update them.
             </p>
             {lockedRoles.length > 0 && (
               <p className="field-hint">
@@ -503,7 +545,7 @@ export function DirectionCardBody({
               disabled={regen.running}
               onClick={startRegen}
             >
-              {regen.running ? "Regenerating…" : "Regenerate"}
+              {regen.running ? "Revising…" : "Revise direction"}
             </button>
           </div>
         )}

@@ -28,14 +28,18 @@ afterEach(async () => {
 });
 
 const VERSION: AssetVersion = {
+  formatVersion: 2,
+  status: "completed",
+  conditioning: "foundation",
+  contextSnapshot: "{}",
   id: "v1",
   createdAt: "2026-08-20T00:00:00.000Z",
   description: "the brand mascot",
-  source: {
+  foundation: {
     directionId: "direction-a",
     versionId: "2026-08-20T00-00-00-000Z",
-    image: "styleTile",
   },
+  provenance: { kind: "generated" },
   files: [],
 };
 
@@ -90,6 +94,7 @@ describe("extracted-asset anchor — location (SC-02)", () => {
 describe("ExtractedAssetIndex — direction anchor only (SC-02)", () => {
   it("strips a stray unknown legacy key, keeping directionId", () => {
     const parsed = parseExtractedAssetIndex({
+      formatVersion: 2,
       id: "mascot",
       name: "Mascot",
       directionId: "direction-a",
@@ -101,6 +106,7 @@ describe("ExtractedAssetIndex — direction anchor only (SC-02)", () => {
     expect("legacyAnchor" in parsed).toBe(false);
     expect(Object.keys(parsed).sort()).toEqual([
       "directionId",
+      "formatVersion",
       "head",
       "id",
       "name",

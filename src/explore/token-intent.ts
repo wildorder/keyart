@@ -267,8 +267,7 @@ export function composeLockedColorsGuidance(
  * fields (name, summary, positioning, character, usage rules/anti-rules, and
  * the headline/subheadline/CTA copy). Appended to an image prompt so the
  * generated imagery reflects the direction's CURRENT definition and overrides
- * any stale name/description/copy baked into the frozen `styleTilePrompt` /
- * `homepageMockupPrompt` prose — the direct sibling of the soft
+ * any stale name/description/copy baked into the frozen `styleTilePrompt` prose — the direct sibling of the soft
  * {@link composeLockedColorsGuidance} for content instead of color. Purely
  * derived, so editing any of these
  * fields (via the studio's Edit form) and re-running re-projects it.

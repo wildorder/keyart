@@ -979,7 +979,6 @@ function makeDirectionVersion(
     summary: "A summary.",
     positioning: "A positioning statement.",
     character: {},
-    homepageMockupPrompt: "",
     styleTilePrompt: "",
     copyExamples: { headline: "h", subheadline: "s", cta: "c" },
     usage: { rules: [], antiRules: [] },

@@ -787,7 +787,7 @@ describe("serve write/asset/action endpoints (end-to-end, no network / no key)",
     const directionsDir = directionsDirOf("moody");
     const original = await readVersion(directionsDir, directionId, versionId);
 
-    // Advance the head via an in-place edit so the head differs from v1.
+    // An edit advances the head without touching v1.
     const edit = makeReq({
       method: "PUT",
       originalUrl: `/api/directions/${directionId}`,
@@ -796,7 +796,9 @@ describe("serve write/asset/action endpoints (end-to-end, no network / no key)",
     const editRes = makeRes();
     await runChain(stack, edit, editRes);
     expect(editRes.statusCode).toBe(200);
-    const editedHead = await readVersion(directionsDir, directionId, versionId);
+    const editedId = (editRes.json() as { versionId: string }).versionId;
+    expect(editedId).not.toBe(versionId);
+    const editedHead = await readVersion(directionsDir, directionId, editedId);
     expect(editedHead.name).toBe("Edited Head");
 
     // Restore v1's content by POSTing it to the versions route — appends a NEW
@@ -805,12 +807,12 @@ describe("serve write/asset/action endpoints (end-to-end, no network / no key)",
       method: "POST",
       originalUrl: `/api/directions/${directionId}/versions`,
       body: {
+        versionId,
         name: original.name,
         summary: original.summary,
         positioning: original.positioning,
         character: original.character,
         styleTilePrompt: original.styleTilePrompt,
-        homepageMockupPrompt: original.homepageMockupPrompt,
         usage: original.usage,
         copyExamples: original.copyExamples,
         ...(original.tokens ? { tokens: original.tokens } : {}),
@@ -830,10 +832,8 @@ describe("serve write/asset/action endpoints (end-to-end, no network / no key)",
     expect(index.head).toBe(rVer);
     const restored = await readVersion(directionsDir, directionId, rVer);
     expect(restored.name).toBe(original.name); // content equals the restored version
-    // Prior versions untouched (the edited v1 still carries its edit).
-    expect((await readVersion(directionsDir, directionId, versionId)).name).toBe(
-      "Edited Head",
-    );
+    expect(await readVersion(directionsDir, directionId, versionId)).toEqual(original);
+    expect(await readVersion(directionsDir, directionId, editedId)).toEqual(editedHead);
   });
 
   it("records an attributed memory note on direction upload, none for references-only", async () => {
@@ -1002,24 +1002,26 @@ describe("serve write/asset/action endpoints (end-to-end, no network / no key)",
   });
 
   it("PUT and versions POST persist structured tokens through the edit core", async () => {
-    // The studio addresses a direction by { directionId }; the head is edited in
-    // place via PUT, and a new version is appended via …/versions.
+    // Both edit paths append immutable foundations from the selected source.
     const { directionId: dirId, versionId } = await scaffoldDirectionWithRun("moody");
     const directionsDir = directionsDirOf("moody");
 
     const tokens = sampleTokens();
 
-    // PUT …/directions/:id with a tokens body edits the head version IN PLACE.
+    const original = await readVersion(directionsDir, dirId, versionId);
     const put = makeReq({
       method: "PUT",
       originalUrl: `/api/directions/${dirId}`,
-      body: { tokens },
+      body: { tokens, versionId },
     });
     const putRes = makeRes();
     await runChain(stack, put, putRes);
     expect(putRes.statusCode).toBe(200);
 
-    const edited = await readVersion(directionsDir, dirId, versionId);
+    const editedId = (putRes.json() as { versionId: string }).versionId;
+    expect(editedId).not.toBe(versionId);
+    const edited = await readVersion(directionsDir, dirId, editedId);
+    expect(await readVersion(directionsDir, dirId, versionId)).toEqual(original);
     expect(edited.tokens?.typography.heading).toBe("Space Grotesk");
     expect(edited.tokens?.palette.find((t) => t.role === "primary")?.hex).toBe("#3344ff");
     expect(edited.tokens?.shape.radius).toBe("8px");
@@ -2555,6 +2557,10 @@ describe("WS-05 (asset-extraction): serve asset endpoints (no network / no key)"
     return directionsRoot(tmpDir, buildTestConfig(tmpDir));
   }
 
+  async function foundationVersion(directionId: string): Promise<string> {
+    return (await readDirectionIndex(directionsRootOf(), directionId)).head!;
+  }
+
   /** Creates a draft direction and runs one dry-run divergent explore,
    * returning the sibling direction ids it seeds (several — enough for A/B
    * scoping cases). */
@@ -2580,7 +2586,7 @@ describe("WS-05 (asset-extraction): serve asset endpoints (no network / no key)"
     const [directionId] = await scaffoldSiblingDirections("moody");
 
     const mp = buildMultipart({
-      fields: { directionId, describe: "the yak mascot", name: "yak" },
+      fields: { directionId, versionId: await foundationVersion(directionId), describe: "the yak mascot", name: "yak" },
     });
     const req = makeMultipartReq("/api/actions/asset-extract", mp);
     const res = makeRes();
@@ -2634,7 +2640,7 @@ describe("WS-05 (asset-extraction): serve asset endpoints (no network / no key)"
     const [directionId] = await scaffoldSiblingDirections("moody");
 
     const mp = buildMultipart({
-      fields: { directionId, describe: "the yak mascot" },
+      fields: { directionId, versionId: await foundationVersion(directionId), describe: "the yak mascot" },
       files: [{ field: "crop", filename: "crop.png", contentType: "image/png", content: PNG_BYTES }],
     });
     const req = makeMultipartReq("/api/actions/asset-extract", mp);
@@ -2666,11 +2672,13 @@ describe("WS-05 (asset-extraction): serve asset endpoints (no network / no key)"
       "asset-version.json",
     );
     const version = JSON.parse(await fs.readFile(versionPath, "utf-8")) as {
-      source: { cropPath?: string };
+      provenance: { kind: string; cropPath?: string };
     };
-    expect(version.source.cropPath).toBe(
-      `brand/directions/${directionId}/assets/extract-crops/${cropFiles[0]}`,
+    expect(version.provenance.kind).toBe("extracted");
+    expect(version.provenance.cropPath).toBe(
+      `brand/directions/${directionId}/extracted-assets/${result.assetId}/versions/${result.versionId}/source-crop.png`,
     );
+    expect(await fs.readFile(path.join(tmpDir, version.provenance.cropPath!))).toEqual(PNG_BYTES);
 
     // A non-image crop → 415 (the element-feedback checks) — nothing written.
     const badType = buildMultipart({
@@ -2686,7 +2694,7 @@ describe("WS-05 (asset-extraction): serve asset endpoints (no network / no key)"
     const [directionId] = await scaffoldSiblingDirections("moody");
 
     const extract = buildMultipart({
-      fields: { directionId, describe: "the yak mascot" },
+      fields: { directionId, versionId: await foundationVersion(directionId), describe: "the yak mascot" },
     });
     const extractRes = makeRes();
     await runChain(stack, makeMultipartReq("/api/actions/asset-extract", extract), extractRes);
@@ -2729,7 +2737,8 @@ describe("WS-05 (asset-extraction): serve asset endpoints (no network / no key)"
       head: string;
     };
     expect(index.versions).toHaveLength(2);
-    expect(index.head).toBe(result.versionId);
+    expect(index.head).toBe(""); // Pending attempts do not advance a completed head.
+    expect(index.versions.at(-1)).toBe(result.versionId);
 
     const v1Path = path.join(assetDir, "versions", index.versions[0], "asset-version.json");
     await expect(fs.access(v1Path)).resolves.toBeUndefined();
@@ -2739,7 +2748,7 @@ describe("WS-05 (asset-extraction): serve asset endpoints (no network / no key)"
     const [directionA, directionB] = await scaffoldSiblingDirections("moody");
 
     const extractA = buildMultipart({
-      fields: { directionId: directionA, describe: "asset a" },
+      fields: { directionId: directionA, versionId: await foundationVersion(directionA), describe: "asset a" },
     });
     const resA = makeRes();
     await runChain(stack, makeMultipartReq("/api/actions/asset-extract", extractA), resA);
@@ -2747,7 +2756,7 @@ describe("WS-05 (asset-extraction): serve asset endpoints (no network / no key)"
     const assetIdA = (settledA.result as { assetId: string }).assetId;
 
     const extractB = buildMultipart({
-      fields: { directionId: directionB, describe: "asset b" },
+      fields: { directionId: directionB, versionId: await foundationVersion(directionB), describe: "asset b" },
     });
     const resB = makeRes();
     await runChain(stack, makeMultipartReq("/api/actions/asset-extract", extractB), resB);
@@ -2792,7 +2801,7 @@ describe("WS-05 (asset-extraction): serve asset endpoints (no network / no key)"
     const [directionId] = await scaffoldSiblingDirections("moody");
 
     const extract = buildMultipart({
-      fields: { directionId, describe: "the yak mascot" },
+      fields: { directionId, versionId: await foundationVersion(directionId), describe: "the yak mascot" },
     });
     const extractRes = makeRes();
     await runChain(stack, makeMultipartReq("/api/actions/asset-extract", extract), extractRes);
@@ -2853,7 +2862,7 @@ describe("WS-05 (asset-extraction): serve asset endpoints (no network / no key)"
     const [directionA, directionB] = await scaffoldSiblingDirections("moody");
 
     const extractA = buildMultipart({
-      fields: { directionId: directionA, describe: "asset a", name: "asset-a" },
+      fields: { directionId: directionA, versionId: await foundationVersion(directionA), describe: "asset a", name: "asset-a" },
     });
     const resA = makeRes();
     await runChain(stack, makeMultipartReq("/api/actions/asset-extract", extractA), resA);
@@ -2864,6 +2873,7 @@ describe("WS-05 (asset-extraction): serve asset endpoints (no network / no key)"
     let dirA = data.directions.find((d) => d.id === directionA)!;
     let entry = dirA.extractedAssets.find((a) => a.id === assetId)!;
     expect(entry.name).toBe("asset-a");
+    expect(entry.conditioning).toBe("foundation");
     expect(entry.description).toBe("asset a");
     expect(entry.versionCount).toBe(1);
     expect(typeof entry.headVersionId).toBe("string");
@@ -2885,10 +2895,17 @@ describe("WS-05 (asset-extraction): serve asset endpoints (no network / no key)"
       "asset.png",
     );
     await fs.writeFile(pngAbs, PNG_BYTES);
+    const completedVersionPath = path.join(path.dirname(pngAbs), "asset-version.json");
+    const completedVersion = JSON.parse(await fs.readFile(completedVersionPath, "utf8"));
+    await fs.writeFile(completedVersionPath, JSON.stringify({ ...completedVersion, status: "completed", dryRun: false, conditioning: "legacy-unverified" }));
+    const completedIndexPath = path.join(directionsRootOf(), directionA, "extracted-assets", assetId, "asset.json");
+    const completedIndex = JSON.parse(await fs.readFile(completedIndexPath, "utf8"));
+    await fs.writeFile(completedIndexPath, JSON.stringify({ ...completedIndex, head: entry.headVersionId }));
 
     data = await loadDashboardData(tmpDir);
     dirA = data.directions.find((d) => d.id === directionA)!;
     entry = dirA.extractedAssets.find((a) => a.id === assetId)!;
+    expect(entry.conditioning).toBe("legacy-unverified");
     expect(entry.imagePath).toBe(
       `brand/directions/${directionA}/extracted-assets/${assetId}/versions/${entry.headVersionId}/asset.png`,
     );

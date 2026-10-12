@@ -30,3 +30,10 @@ globs: ["**/*.tsx", "**/*.css", "**/*.scss", "**/*.module.css"]
 ## CSS Variables
 
 Reference `brand.css` for canonical token values. Use `var(--brand-*)` tokens instead of hardcoded colors, fonts, or spacing values.
+
+## Boards and assets
+
+The approved foundation supplies brand facts. Boards are exploratory compositions,
+not editable production templates or token sources. Use shipped assets by their
+recorded paths and foundation provenance; approving a new foundation does not
+regenerate old artwork. Request a new Board or usable asset explicitly when needed.

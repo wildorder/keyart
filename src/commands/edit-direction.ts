@@ -1,24 +1,22 @@
 import path from "node:path";
-import { loadConfig, directionsRoot } from "../config.js";
-import { writeJsonFile } from "../fs.js";
-import { writeDirectionVersion } from "../explore/write-direction-version.js";
-import { readHead, readVersion, resolveDirection } from "../direction/store.js";
+import { loadConfig } from "../config.js";
+import { resolveDirection } from "../direction/store.js";
+import { resolveFoundation } from "../direction/foundation.js";
+import { runReviseDirection } from "./regenerate-visuals.js";
 import { CommandError } from "../errors.js";
-import { createDirectionCore } from "../direction/core.js";
 import { FONT_PAIRINGS } from "../brand/fonts.js";
 import type {
   DirectionCharacter,
   DirectionContent,
   DirectionTokens,
   DirectionUsage,
-  DirectionVersion,
   PaletteRole,
 } from "../types.js";
 
 /**
  * The user-editable subset of a {@link DirectionContent}. `id` and the version's
- * provenance are NEVER edited here (identity is preserved); image files are left
- * untouched (editing text does not regenerate previews).
+ * provenance are NEVER edited here. Saving appends a new foundation with its own
+ * tile generation; historical versions and images remain untouched.
  */
 export interface DirectionEdits {
   name?: string;
@@ -30,18 +28,17 @@ export interface DirectionEdits {
   usage?: DirectionUsage;
   copyExamples?: { headline?: string; subheadline?: string; cta?: string };
   styleTilePrompt?: string;
-  homepageMockupPrompt?: string;
   /**
    * Structured design tokens (palette + typography + shape). When provided they
-   * REPLACE the direction's tokens wholesale after validation — the studio
-   * always sends a complete token object (edited palette / catalog font / shape).
+   * Seed a new foundation after validation. Palette edits become verbatim user
+   * locks; when a tile renders its typography is transcribed from that new tile.
    */
   tokens?: DirectionTokens;
 }
 
 export interface EditDirectionResult {
   directionId: string;
-  versionId: string; // the version whose content was edited (in place)
+  versionId: string; // the new foundation version; the source remains immutable
   filesWritten: string[]; // cwd-relative, forward slashes
 }
 
@@ -134,8 +131,6 @@ function applyEdits<T extends DirectionContent>(
     positioning: edits.positioning?.trim() ?? base.positioning,
     character: edits.character ?? base.character,
     styleTilePrompt: edits.styleTilePrompt?.trim() ?? base.styleTilePrompt,
-    homepageMockupPrompt:
-      edits.homepageMockupPrompt?.trim() ?? base.homepageMockupPrompt,
     usage: edits.usage
       ? {
           rules: cleanList(edits.usage.rules),
@@ -170,26 +165,7 @@ function assertValid(d: DirectionContent): void {
   }
 }
 
-/** Resolve a direction's target version (default: its head). Throws a
- * CommandError naming the direction/version when absent. */
-async function resolveVersion(
-  directionsDir: string,
-  directionId: string,
-  versionId: string | undefined,
-): Promise<{ versionId: string; version: DirectionVersion }> {
-  if (versionId !== undefined) {
-    return { versionId, version: await readVersion(directionsDir, directionId, versionId) };
-  }
-  const version = await readHead(directionsDir, directionId);
-  return { versionId: version.id, version };
-}
-
-/**
- * In-place edit of a direction VERSION's text fields. Rewrites the target
- * version's `direction-version.json` (default: the head), leaving images, prompt
- * snapshots, memory, and the global brand untouched. Preserves the version's
- * identity + provenance. (In-place head edit — the studio's "save fields".)
- */
+/** Saving a changed look appends a foundation and generates its own tile when keyed. */
 export async function runEditDirection(opts: {
   cwd: string;
   directionId: string;
@@ -198,45 +174,24 @@ export async function runEditDirection(opts: {
 }): Promise<EditDirectionResult> {
   const cwd = path.resolve(opts.cwd);
   const config = await loadConfig(opts.cwd);
-  const rel = (abs: string): string =>
-    path.relative(cwd, abs).split(path.sep).join("/");
-  const filesWritten: string[] = [];
-  const root = directionsRoot(opts.cwd, config);
-  await resolveDirection(opts.cwd, config, opts.directionId); // asserts existence
-
-  const { versionId, version } = await resolveVersion(
-    root,
-    opts.directionId,
-    opts.versionId,
-  );
-
-  const edited = applyEdits(version, opts.edits);
+  const direction = await resolveDirection(cwd, config, opts.directionId);
+  const foundation = await resolveFoundation({ cwd, config, directionId: opts.directionId,
+    versionId: opts.versionId ?? direction.record.head ?? "" });
+  const edited = applyEdits(foundation.content, opts.edits);
   assertValid(edited);
-
-  const versionJsonPath = path.join(
-    root,
-    opts.directionId,
-    "versions",
-    versionId,
-    "direction-version.json",
-  );
-  await writeJsonFile(versionJsonPath, edited);
-  filesWritten.push(rel(versionJsonPath));
-
+  const written = await runReviseDirection({ cwd, directionId: opts.directionId,
+    versionId: foundation.versionId, editedContent: edited,
+    lockedColors: opts.edits.tokens?.palette.map(({ role, hex }) => ({ role, hex })) });
   return {
     directionId: opts.directionId,
-    versionId,
-    filesWritten,
+    versionId: written.versionId,
+    filesWritten: written.filesWritten,
   };
 }
 
 /**
  * Save the edited fields as a NEW VERSION of the SAME direction (the head
- * advances), leaving the prior versions untouched (append-only history). This is
- * the "edit-as-new-head" gesture — an edited version rather than an in-place
- * rewrite — and it skips model image generation (no cost / no wait; previews can
- * be regenerated later). Drops the old new-run / lineage variant entirely: a
- * variant is now a new version of the same direction, not a new direction (SC-07).
+ * advances), using the exact same immutable edit path.
  */
 export async function runSaveVariant(opts: {
   cwd: string;
@@ -245,55 +200,5 @@ export async function runSaveVariant(opts: {
   versionId?: string;
   edits: DirectionEdits;
 }): Promise<SaveVariantResult> {
-  const cwd = path.resolve(opts.cwd);
-  const config = await loadConfig(opts.cwd);
-  const root = directionsRoot(opts.cwd, config);
-  await resolveDirection(opts.cwd, config, opts.directionId); // asserts existence
-
-  const { versionId: baseVersionId, version: base } = await resolveVersion(
-    root,
-    opts.directionId,
-    opts.versionId,
-  );
-
-  const merged = applyEdits(base, opts.edits);
-  assertValid(merged);
-
-  // Brief-snapshot source = the RENDERED PROJECTION of the direction's brief
-  // (the single chokepoint), never the on-disk `brief.md` as an authored source.
-  const core = createDirectionCore(cwd, config);
-  const brief = await core.getRenderedBrief(opts.directionId);
-
-  // Build a fresh version from the merged content (strip the base version's
-  // identity/provenance; the writer + a new createdAt supply this version's own).
-  const { id: _pid, createdAt: _pc, producedBy: _pb, briefSnapshot: _pbs, contextSnapshot: _pcs, ...content } =
-    merged;
-  const newVersion: DirectionVersion = {
-    ...content,
-    id: "",
-    createdAt: new Date().toISOString(),
-    producedBy: "manual edit",
-    briefSnapshot: brief,
-    contextSnapshot: `## Manual edit\n\nAuthored by hand from ${opts.directionId}@${baseVersionId}.`,
-  };
-  const written = await writeDirectionVersion({
-    cwd,
-    directionsDir: root,
-    directionId: opts.directionId,
-    version: newVersion,
-    config,
-    referenceImagePaths: [],
-    skipImages: true,
-  });
-
-  console.log(
-    `\nSaved an edited version of "${opts.directionId}" (${written.versionId}).`,
-  );
-  console.log(`To approve it:\n  keyart approve ${opts.directionId}`);
-
-  return {
-    directionId: opts.directionId,
-    versionId: written.versionId,
-    filesWritten: written.filesWritten,
-  };
+  return runEditDirection(opts);
 }

@@ -31,7 +31,6 @@ describe("buildPlaceholderDirections", () => {
       expect(typeof d.summary).toBe("string");
       expect(typeof d.positioning).toBe("string");
       expect(typeof d.character).toBe("object");
-      expect(typeof d.homepageMockupPrompt).toBe("string");
       expect(typeof d.styleTilePrompt).toBe("string");
       expect(typeof d.copyExamples.headline).toBe("string");
       expect(typeof d.copyExamples.subheadline).toBe("string");
@@ -390,7 +389,6 @@ describe("generateDirections", () => {
       summary: "A structured direction.",
       positioning: "Positioned clearly.",
       character: { mood: "calm", layout: "spacious" },
-      homepageMockupPrompt: "homepage prompt",
       styleTilePrompt: "style tile prompt",
       copyExamples: { headline: "H", subheadline: "S", cta: "C" },
       usage: { rules: ["do this"], antiRules: ["never that"] },
@@ -422,7 +420,6 @@ describe("generateDirections", () => {
       summary: "A legacy freeform direction.",
       positioning: "Positioned.",
       visualStyle: "Bold and modern with strong contrast.",
-      homepageMockupPrompt: "homepage prompt",
       styleTilePrompt: "style tile prompt",
       copyExamples: { headline: "H", subheadline: "S", cta: "C" },
       designRules: ["a", "b", "c"],
@@ -560,11 +557,7 @@ describe("runExplore integration", () => {
       );
       expect(styleTile.trim().length).toBeGreaterThan(0);
 
-      const homepage = await fs.readFile(
-        path.join(versionDir, "homepage-mockup-prompt.md"),
-        "utf-8",
-      );
-      expect(homepage.trim().length).toBeGreaterThan(0);
+      await expect(fs.stat(path.join(versionDir, "homepage-mockup-prompt.md"))).rejects.toMatchObject({ code: "ENOENT" });
     }
   });
 });

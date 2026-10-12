@@ -5,7 +5,48 @@
  * the rendered transcript. JSX-free, total, unit-tested — this is where the
  * streaming UI logic gets executable coverage without a render harness.
  */
-import type { ChatEvent, ChatTurn } from "./types.js";
+import type { ChatCardEvent, ChatEvent, ChatTurn } from "./types.js";
+
+/** One action, projected from its lifecycle events rather than one card per event. */
+export interface ChatAction {
+  key: string;
+  toolName: string;
+  event: ChatCardEvent;
+  approved?: boolean;
+  job?: Extract<ChatEvent, { type: "job" }>;
+}
+
+function eventCallId(event: ChatCardEvent): string | undefined {
+  return "callId" in event && typeof event.callId === "string" ? event.callId : undefined;
+}
+
+export function groupChatActions(events: ChatCardEvent[]): ChatAction[] {
+  const actions: ChatAction[] = [];
+  for (const event of events) {
+    if (!["tool_call", "pending_approval", "approval_decision", "job", "tool_result"].includes(event.type)) continue;
+    const id = eventCallId(event);
+    const name = "toolName" in event ? event.toolName : undefined;
+    let action = id ? actions.find((item) => item.key === id) : undefined;
+    // Older servers lack ids. Only fold continuation events into the latest open action.
+    if (!id && event.type !== "tool_call") {
+      const last = actions.at(-1);
+      if (last && (!name || last.toolName === name) &&
+          (event.type !== "pending_approval" || last.event.type === "tool_call")) action = last;
+    }
+    if (!action) {
+      action = { key: id ?? `action-${actions.length}`, toolName: name ?? "Action", event };
+      actions.push(action);
+    }
+    if (name) action.toolName = name;
+    if (event.type === "approval_decision") action.approved = event.approved;
+    if (event.type === "job") action.job = event;
+    // Job polling owns terminal output; the dispatcher's launch receipt is not another result.
+    if (event.type === "tool_result" && action.job && !event.isError) continue;
+    if (event.type === "tool_result" && action.approved === false && !event.isError) continue;
+    action.event = event;
+  }
+  return actions;
+}
 
 export interface ParsedSseFrames {
   events: ChatEvent[];
@@ -60,11 +101,29 @@ export function initialChatViewState(): ChatViewState {
 }
 
 /** Appends a user turn (plain text, no tool calls) — does not mutate `state`. */
-export function appendUserTurn(state: ChatViewState, message: string): ChatViewState {
+export function appendUserTurn(state: ChatViewState, message: string, attachment?: ChatTurn["attachment"]): ChatViewState {
   return {
     ...state,
-    messages: [...state.messages, { role: "user", content: message, toolCalls: [] }],
+    messages: [...state.messages, { role: "user", content: message, ...(attachment ? { attachment } : {}), toolCalls: [] }],
     error: null,
+  };
+}
+
+/** Consume the active gate immediately; historical cards can never become gates again. */
+export function decideChatApproval(state: ChatViewState, approved: boolean): ChatViewState {
+  const pending = state.pendingApproval;
+  if (!pending) return state;
+  return {
+    ...state,
+    pendingApproval: null,
+    streaming: true,
+    error: null,
+    messages: state.messages.map((turn) => ({
+      ...turn,
+      toolCalls: turn.toolCalls.map((event) => event === pending
+        ? { type: "approval_decision" as const, callId: eventCallId(event), toolName: event.toolName, arguments: event.arguments, approved }
+        : event),
+    })),
   };
 }
 
@@ -153,6 +212,7 @@ export function reduceChatEvent(state: ChatViewState, event: ChatEvent): ChatVie
     case "error":
       return {
         ...state,
+        streaming: false,
         error: event.message,
         unavailable: event.unavailable === true ? true : state.unavailable,
       };

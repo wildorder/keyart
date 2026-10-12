@@ -14,33 +14,25 @@
  */
 import React, { useState } from "react";
 import { useElementFeedback, postAssetExtract, ApiError } from "../hooks.js";
-import type { ElementFeedbackIntent, Job } from "../types";
+import type { ElementFeedbackIntent, Job, VisualSource } from "../types";
+import { sourceFields } from "../board-view.js";
 import {
   elementFeedbackRequest,
   extractAssetRequest,
 } from "../direction-actions.js";
-import { elementFeedbackTargetFields } from "./memory-select.js";
-import type { AssetSourceImage } from "../asset-shelf-helpers.js";
 import { formatCropSize, type Capture } from "../stage-capture.js";
 import { JobProgress, summarizeJob } from "./JobProgress";
 import { useToasts } from "./Toasts";
 
 export function ElementFeedback({
-  directionId,
-  versionId,
   capture,
-  sourceImage,
+  source,
   onClear,
   onDone,
 }: {
-  directionId: string;
-  versionId?: string;
   /** The capture taken on the stage — a crop PNG or an eyedropper hex. */
   capture: Capture;
-  /** The logical source-image name for this feedback target (additive,
-   * WS-06) — the extract action's `image` field. Absent → the field is
-   * omitted from the extract POST and the server applies its default. */
-  sourceImage?: AssetSourceImage;
+  source: VisualSource;
   /** Drop the pending capture without recording anything. */
   onClear: () => void;
   onDone: () => void;
@@ -71,7 +63,7 @@ export function ElementFeedback({
   const trimmedNote = note.trim();
   const noteField: Record<string, string> = trimmedNote ? { note: trimmedNote } : {};
   // Scope is location — the direction the capture was taken on is the target.
-  const targetFields = elementFeedbackTargetFields(directionId, versionId);
+  const targetFields = sourceFields(source);
 
   const keepCrop = (): void => {
     if (capture.kind !== "crop") return;
@@ -114,11 +106,9 @@ export function ElementFeedback({
     setExtractError(null);
     try {
       const req = extractAssetRequest({
-        directionId, // the focused direction — direction-scoped by construction
         describe,
         name,
-        ...(sourceImage ? { image: sourceImage } : {}),
-        ...(versionId ? { versionId } : {}), // the version the stage is showing
+        ...sourceFields(source),
       });
       const { jobId } = await postAssetExtract({
         blob: capture.blob, // the crop PNG the stage already produced

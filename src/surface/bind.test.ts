@@ -110,7 +110,6 @@ function makeDirectionVersion(
     summary: "A summary.",
     positioning: "A positioning statement.",
     character: {},
-    homepageMockupPrompt: "",
     styleTilePrompt: "",
     copyExamples: { headline: "h", subheadline: "s", cta: "c" },
     usage: { rules: [], antiRules: [] },
@@ -124,6 +123,7 @@ function makeAssetIndex(
   overrides: Partial<ExtractedAssetIndex> = {},
 ): ExtractedAssetIndex {
   return {
+    formatVersion: 2,
     id,
     name: id,
     directionId: "direction-a",
@@ -503,10 +503,15 @@ async function writeAssetFixture(
 ): Promise<void> {
   const directionDir = directionDirOf(opts.directionId);
   const version: AssetVersion = {
+    formatVersion: 2,
+    status: opts.withPng ? "completed" : "pending",
+    conditioning: "foundation",
+    contextSnapshot: "{}",
+    foundation: { directionId: opts.directionId, versionId: VERSION_ID },
     id: opts.versionId,
     createdAt: NOW,
     description: opts.description ?? `${opts.name} description`,
-    source: opts.source,
+    provenance: { kind: "extracted", source: opts.source },
     files: opts.withPng ? ["asset.png"] : [],
   };
   await appendAssetVersion(
@@ -529,6 +534,7 @@ async function writeAssetFixture(
 }
 
 const SRC_A: AssetSource = {
+  kind: "foundation",
   directionId: "direction-a",
   versionId: VERSION_ID,
   image: "styleTile",

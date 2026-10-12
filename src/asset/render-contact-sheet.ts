@@ -1,4 +1,4 @@
-import type { AssetSource } from "./schema.js";
+import type { AssetFoundation, AssetProvenance, AssetVersion } from "./schema.js";
 
 /**
  * The deterministic "asset pack" contact sheet: a code-rendered SVG grid +
@@ -7,8 +7,8 @@ import type { AssetSource } from "./schema.js";
  * call, no rasterization, no new dependency; byte-identical output for
  * identical input (no timestamps, no randomness, no locale-sensitive
  * formatting). Assets render in INPUT ARRAY ORDER — the caller owns ordering.
- * An image-less (dry-run) head renders an honest "pending (dry-run)"
- * placeholder — never a fabricated image.
+ * Image-less attempts render their actual pending/failed state, never a
+ * fabricated image.
  */
 
 export interface ContactSheetAsset {
@@ -16,8 +16,11 @@ export interface ContactSheetAsset {
   name: string;
   description: string;
   versionId: string; // the head version rendered/promised in the pack
-  hasImage: boolean; // false ⇒ dry-run head with no asset.png
-  source: AssetSource; // provenance: source direction-version image (+ crop)
+  hasImage: boolean; // true only for an available completed image
+  foundation: AssetFoundation;
+  provenance: AssetProvenance;
+  conditioning: AssetVersion["conditioning"];
+  status: AssetVersion["status"];
 }
 
 export interface ContactSheetInput {
@@ -41,13 +44,12 @@ function escapeMdCell(value: string): string {
   return value.replace(/\|/g, "\\|");
 }
 
-function hasCrop(source: AssetSource): boolean {
-  return source.cropBox !== undefined || source.cropPath !== undefined;
-}
-
-/** `from <source.image> @ <source.versionId>`, plus a `(crop)` marker when cropped. */
-function provenanceLine(source: AssetSource): string {
-  return `from ${source.image} @ ${source.versionId}${hasCrop(source) ? " (crop)" : ""}`;
+function provenanceLine(asset: ContactSheetAsset): string {
+  const origin = asset.provenance;
+  const source = origin.kind === "generated" ? "generated" : origin.source.kind === "foundation" ? "extracted from styleTile" : `extracted from Board ${origin.source.boardId}@${origin.source.revisionId}`;
+  const crop = origin.kind === "extracted" && (origin.cropBox || origin.cropPath) ? " (crop)" : "";
+  const conditioning = asset.conditioning === "legacy-unverified" ? "legacy-unverified (tile conditioning not verified)" : asset.hasImage ? "foundation-conditioned" : "foundation conditioning requested";
+  return `${source}; foundation ${asset.foundation.directionId}@${asset.foundation.versionId}${crop}; ${conditioning}`;
 }
 
 const COLS = 3;
@@ -61,8 +63,8 @@ const ROW_H = TILE_H + CAPTION_H;
 
 /**
  * A titled grid of labeled tiles: a bordered image tile (relative `<id>.png`
- * href, no base64 embedding) for `hasImage: true` assets, a dashed "pending
- * (dry-run)" placeholder tile otherwise, and a 4-line caption (name, id,
+ * href, no base64 embedding) for `hasImage: true` assets, a dashed status
+ * placeholder tile otherwise, and a 4-line caption (name, id,
  * provenance, head version) under every tile. Zero assets renders a valid SVG
  * with the title and an honest "No active assets." line. A neutral fixed
  * palette — the sheet is a handoff artifact, not a brand artifact.
@@ -110,7 +112,7 @@ export function renderContactSheetSvg(input: ContactSheetInput): string {
           `  <rect x="${x}" y="${y}" width="${TILE_W}" height="${TILE_H}" fill="#f8f8f8" stroke="#999999" stroke-width="1" stroke-dasharray="6,4"/>`,
         );
         parts.push(
-          `  <text x="${x + TILE_W / 2}" y="${y + TILE_H / 2}" font-family="system-ui, sans-serif" font-size="14" fill="#777777" text-anchor="middle">pending (dry-run)</text>`,
+          `  <text x="${x + TILE_W / 2}" y="${y + TILE_H / 2}" font-family="system-ui, sans-serif" font-size="14" fill="#777777" text-anchor="middle">${asset.status === "failed" ? "failed" : "pending"}</text>`,
         );
       }
 
@@ -122,7 +124,7 @@ export function renderContactSheetSvg(input: ContactSheetInput): string {
         `  <text x="${x}" y="${capY + 16}" font-family="system-ui, sans-serif" font-size="11" fill="#555555">${escapeXml(asset.id)}</text>`,
       );
       parts.push(
-        `  <text x="${x}" y="${capY + 32}" font-family="system-ui, sans-serif" font-size="11" fill="#777777">${escapeXml(provenanceLine(asset.source))}</text>`,
+        `  <text x="${x}" y="${capY + 32}" font-family="system-ui, sans-serif" font-size="11" fill="#777777">${escapeXml(provenanceLine(asset))}</text>`,
       );
       parts.push(
         `  <text x="${x}" y="${capY + 48}" font-family="system-ui, sans-serif" font-size="11" fill="#777777">head ${escapeXml(asset.versionId)}</text>`,
@@ -137,16 +139,16 @@ export function renderContactSheetSvg(input: ContactSheetInput): string {
 /**
  * A markdown table projection of the same input — same order, same data. The
  * `Status` cell is a relative image reference when `hasImage`, else the
- * literal `pending (dry-run)`. Zero assets renders the header + an honest
+ * recorded pending/failed state. Zero assets renders the header + an honest
  * "_No active assets._" line instead of a table.
  */
 export function renderContactSheetMarkdown(input: ContactSheetInput): string {
   const { directionId, directionName, assets } = input;
   const header = `# Asset Pack — ${directionName ?? directionId}`;
   const intro =
-    "Active extracted assets for direction `" +
+    "Active assets for direction `" +
     directionId +
-    "`. Images are the head version of each asset; a pending row is a dry-run head with no PNG yet (re-run `asset regenerate` with a key).";
+    "`. Images are each asset's latest completed version. Rows without a completed image show their latest attempt. Each asset retains its recorded foundation; packing and approval do not regenerate assets.";
 
   if (assets.length === 0) {
     return `${header}\n\n${intro}\n\n_No active assets._\n`;
@@ -157,10 +159,10 @@ export function renderContactSheetMarkdown(input: ContactSheetInput): string {
       asset.description.trim().length > 0
         ? `${escapeMdCell(asset.name)}<br>${escapeMdCell(asset.description)}`
         : escapeMdCell(asset.name);
-    const sourceCell = `${asset.source.image} @ ${asset.source.versionId}${hasCrop(asset.source) ? " (crop)" : ""}`;
+    const sourceCell = provenanceLine(asset);
     const statusCell = asset.hasImage
       ? `![${asset.id}](${asset.id}.png)`
-      : "pending (dry-run)";
+      : asset.status === "failed" ? "failed" : "pending";
     return `| ${nameCell} | ${escapeMdCell(asset.id)} | ${escapeMdCell(asset.versionId)} | ${escapeMdCell(sourceCell)} | ${statusCell} |`;
   });
 

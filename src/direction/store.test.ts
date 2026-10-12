@@ -56,7 +56,6 @@ function makeVersion(id: string, overrides: Partial<DirectionVersion> = {}): Dir
     summary: "s",
     positioning: "p",
     character: { mood: "v" },
-    homepageMockupPrompt: "hp",
     styleTilePrompt: "st",
     copyExamples: { headline: "h", subheadline: "sh", cta: "c" },
     usage: { rules: ["a", "b", "c"], antiRules: ["x", "y"] },

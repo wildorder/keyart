@@ -246,7 +246,6 @@ function goLive(): void {
           summary: "Rendered freely; tokens read back from the tile.",
           positioning: "The imagery leads and the tokens follow.",
           character: { mood: "Open, unconstrained, swatch-forward." },
-          homepageMockupPrompt: "A homepage mockup.",
           styleTilePrompt: "A swatch-forward style tile.",
           copyExamples: { headline: "Ship it", subheadline: "Fast", cta: "Start" },
           usage: {
@@ -315,7 +314,7 @@ describe("invert-extract pipeline (end-to-end, no network / no key)", () => {
     // guidance either.
     const heading = direction.tokens!.typography.heading.toLowerCase();
     const body = direction.tokens!.typography.body.toLowerCase();
-    for (const file of ["style-tile-prompt.md", "homepage-mockup-prompt.md"]) {
+    for (const file of ["style-tile-prompt.md"]) {
       const prompt = (await readVersionFile(ledDirectionId, file)).toLowerCase();
       expect(prompt).not.toContain("color & type lock");
       expect(prompt).not.toContain("use only");
@@ -480,7 +479,6 @@ describe("invert-extract pipeline (end-to-end, no network / no key)", () => {
       summary: "A legacy prose-only direction.",
       positioning: "Trustworthy and human.",
       character: { mood: "Warm, earthy palette with rounded, friendly typography." },
-      homepageMockupPrompt: "A warm homepage.",
       styleTilePrompt: "A warm style tile.",
       copyExamples: { headline: "Hi", subheadline: "Hello", cta: "Go" },
       usage: {

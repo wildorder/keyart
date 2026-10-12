@@ -16,7 +16,7 @@
  * Coordinate math lives in the pure `../crop-math` module and mode/drag geometry
  * in `../stage-capture`, so this component holds only DOM wiring.
  */
-import React, { useRef, useState } from "react";
+import React, { useRef, useState, type JSX } from "react";
 import { AssetImage, assetUrl } from "./AssetImage";
 import type { LightboxImage } from "./Lightbox";
 import { toNaturalCrop, pixelToHex, type CropRect } from "../crop-math.js";

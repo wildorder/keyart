@@ -72,7 +72,6 @@ function validDirection(id: string): Record<string, unknown> {
     summary: "s",
     positioning: "p",
     character: { mood: "v" },
-    homepageMockupPrompt: "hp",
     styleTilePrompt: "st",
     copyExamples: { headline: "h", subheadline: "sh", cta: "c" },
     usage: { rules: ["r1", "r2", "r3"], antiRules: ["a1", "a2"] },

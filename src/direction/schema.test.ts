@@ -180,6 +180,8 @@ describe("MemoryEntrySchema / AssetRefSchema — scope fields are gone (Test 3)"
       "parseBrandBrief",
       "parseDirectionMemory",
       "parseDirectionRecord",
+      "versionOrdinal",
+      "versionOrdinals",
     ]);
   });
 

@@ -24,7 +24,6 @@ const SAMPLE_DIRECTION: DirectionVersion = {
   character: {
     mood: "High-contrast palette, geometric sans-serif typography, generous whitespace.",
   },
-  homepageMockupPrompt: "Design a bold, modern homepage mockup with geometric shapes.",
   styleTilePrompt: "Create a style tile for a bold, modern brand with color swatches.",
   copyExamples: {
     headline: "Built for what comes next",
@@ -139,11 +138,6 @@ async function writeVersionFiles(
     direction.styleTilePrompt,
     "utf-8",
   );
-  await fs.writeFile(
-    path.join(versionDir, "homepage-mockup-prompt.md"),
-    direction.homepageMockupPrompt,
-    "utf-8",
-  );
 }
 
 /**
@@ -245,7 +239,12 @@ async function seedAsset(
       id: ASSET_VERSION_ID,
       createdAt: "2026-07-20T00:00:00.000Z",
       description: `the ${assetId} element`,
-      source: { directionId, versionId: VERSION_ID, image: "styleTile" },
+      formatVersion: 2,
+      status: opts.png ? "completed" : "pending",
+      conditioning: "foundation",
+      contextSnapshot: "{}",
+      foundation: { directionId, versionId: VERSION_ID },
+      provenance: { kind: "generated" },
       files: ["asset-prompt.md", ...(opts.png ? ["asset.png"] : [])],
     },
   );

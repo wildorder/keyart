@@ -119,6 +119,7 @@ beforeEach(async () => {
 
 afterEach(async () => {
   vi.restoreAllMocks();
+  vi.resetAllMocks();
   await fs.rm(tmpDir, { recursive: true, force: true });
 });
 
@@ -307,7 +308,7 @@ describe("runExplore — image generation behavior", () => {
     const { runExplore } = await import("./explore.js");
     const result = await runExplore({ cwd: tmpDir, directionId: "moody" });
 
-    expect(warnSpy).toHaveBeenCalledTimes(2); // 1 direction × (style tile + homepage)
+    expect(warnSpy).toHaveBeenCalledTimes(1); // 1 direction × (style tile + homepage)
     for (const call of warnSpy.mock.calls) {
       // Scoped to <directionId>/<versionId>/<image>.png (WS-01 layout).
       expect(call[0]).toMatch(
@@ -316,7 +317,7 @@ describe("runExplore — image generation behavior", () => {
     }
 
     // Every skip reason is collected onto the result (never thrown).
-    expect(result.imageSkips).toHaveLength(2);
+    expect(result.imageSkips).toHaveLength(1);
     expect(result.imageSkips.every((r) => r === "rate limited")).toBe(true);
 
     // No images recorded, but each direction's head version carries prompt files
@@ -333,7 +334,7 @@ describe("runExplore — image generation behavior", () => {
       );
       expect(
         await exists(path.join(versionDir, "homepage-mockup-prompt.md")),
-      ).toBe(true);
+      ).toBe(false);
     }
   });
 });
@@ -379,7 +380,7 @@ describe("runExplore — reference grounding, dry-run flag, and env load", () =>
 
     const absAsset = path.resolve(tmpDir, assetRel);
     const calls = vi.mocked(generateImage).mock.calls;
-    expect(calls.length).toBe(2); // 1 direction × (style tile + homepage)
+    expect(calls.length).toBe(1); // 1 direction × (style tile + homepage)
     for (const [arg] of calls) {
       expect(arg.referenceImagePaths).toEqual([absAsset]);
     }
@@ -485,7 +486,6 @@ describe("runExplore — run-level references + intent (WS-05)", () => {
       summary: "s",
       positioning: "p",
       character: { mood: "v" },
-      homepageMockupPrompt: "hp",
       styleTilePrompt: "st",
       copyExamples: { headline: "h", subheadline: "sh", cta: "c" },
       usage: { rules: ["r1", "r2", "r3"], antiRules: ["a1", "a2"] },
@@ -567,7 +567,7 @@ describe("runExplore — run-level references + intent (WS-05)", () => {
     const inspireAbs = path.resolve(tmpDir, "refs/inspire.png");
     const extractAbs = path.resolve(tmpDir, "refs/extract.png");
     const calls = vi.mocked(generateImage).mock.calls;
-    expect(calls.length).toBe(2); // 1 direction × (style tile + homepage)
+    expect(calls.length).toBe(1); // 1 direction × (style tile + homepage)
     for (const [arg] of calls) {
       expect(arg.referenceImagePaths).toEqual([inspireAbs]);
       expect(arg.referenceImagePaths).not.toContain(extractAbs);
@@ -600,7 +600,6 @@ describe("runExplore — brief projection + soft-intent seed (WS-04)", () => {
       summary: "s",
       positioning: "p",
       character: { mood: "v" },
-      homepageMockupPrompt: "hp",
       styleTilePrompt: "st",
       copyExamples: { headline: "h", subheadline: "sh", cta: "c" },
       usage: { rules: ["r1", "r2", "r3"], antiRules: ["a1", "a2"] },
@@ -760,8 +759,7 @@ describe("runExplore — WS-03 art-direction compiler wired into both explore pr
     for (const directionId of result.directionIds) {
       const versionDir = await headVersionDir(directionId);
       const styleMd = await fs.readFile(path.join(versionDir, "style-tile-prompt.md"), "utf-8");
-      const homeMd = await fs.readFile(path.join(versionDir, "homepage-mockup-prompt.md"), "utf-8");
-      for (const md of [styleMd, homeMd]) {
+      for (const md of [styleMd]) {
         expect(md).toContain("MUST (non-negotiable — always obey):");
         expect(md).toContain("Never use a fist-in-the-air icon");
         expect(md).toContain("avoid aggressive diagonal layouts");
@@ -947,10 +945,6 @@ describe("runExplore — direction memory isolation (SC-04/SC-06/SC-11)", () => 
       path.join(newVersionDir, "style-tile-prompt.md"),
       "utf-8",
     );
-    const homeMd = await fs.readFile(
-      path.join(newVersionDir, "homepage-mockup-prompt.md"),
-      "utf-8",
-    );
     const snapshot = await fs.readFile(
       path.join(newVersionDir, "context-snapshot.md"),
       "utf-8",
@@ -958,9 +952,7 @@ describe("runExplore — direction memory isolation (SC-04/SC-06/SC-11)", () => 
 
     // The decoy's own memory is absent from the target's prompts and snapshot.
     expect(styleMd).not.toContain("garish neon");
-    expect(homeMd).not.toContain("garish neon");
     expect(styleMd).not.toContain("#ff0000");
-    expect(homeMd).not.toContain("#ff0000");
     expect(snapshot).not.toContain("garish neon");
     expect(snapshot).not.toContain(keepCropRel);
 

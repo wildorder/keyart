@@ -47,7 +47,6 @@ function makeVersion(
     summary: "",
     positioning: "",
     character: {},
-    homepageMockupPrompt: "",
     styleTilePrompt: "",
     copyExamples: { headline: "", subheadline: "", cta: "" },
     usage: { rules: [], antiRules: [] },
@@ -72,7 +71,7 @@ describe("representativeImage", () => {
     expect(representativeImage(direction)).toBe("new/tile.png");
   });
 
-  it("falls back to the head homepageMockup when the head has no styleTile", () => {
+  it("does not substitute an unmigrated example for a missing foundation tile", () => {
     const direction = makeDirection({
       head: "v2",
       isDraft: false,
@@ -81,7 +80,7 @@ describe("representativeImage", () => {
         makeVersion("v2", { homepageMockup: "v2/mock.png" }),
       ],
     });
-    expect(representativeImage(direction)).toBe("v2/mock.png");
+    expect(representativeImage(direction)).toBeNull();
   });
 
   it("prefers the head styleTile over the head homepageMockup", () => {

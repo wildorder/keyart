@@ -38,7 +38,7 @@ const STYLE_TILE_LABELING_RULE = `- The "styleTilePrompt" MUST instruct the imag
  */
 const PROSE_HYGIENE_RULE = `- "character" describes the look's CHARACTER only (mood/composition/layout/imagery/texture/rhythm). It MUST NOT contain hex color codes or font-family names — color and type are captured structurally (tokenIntent → tokens).
 - "usage.rules"/"usage.antiRules" are imperative rules that reference ROLES (e.g. "use --brand-text for body copy", "the primary role only for CTAs"), NEVER raw hex codes or font-family names.
-- Only the image prompts ("styleTilePrompt"/"homepageMockupPrompt") may contain hex codes and font names (they instruct the image generator).`;
+- Only the style tile prompt ("styleTilePrompt") may contain hex codes and font names (they instruct the image generator).`;
 
 export function buildExploreSystemPrompt(): string {
   return `You are a senior brand strategist and visual designer. Given a creative brief, you produce exactly 3 distinct visual directions for a digital product brand.
@@ -58,7 +58,6 @@ Return a JSON object with a single key "directions" whose value is an array of e
     "texture": string,     // surface qualities
     "rhythm": string       // pacing / repetition / motion
   },
-  "homepageMockupPrompt": string, // a detailed prompt for generating a homepage mockup image
   "styleTilePrompt": string,     // a detailed prompt for generating a style tile image
   "copyExamples": {
     "headline": string,     // example headline copy

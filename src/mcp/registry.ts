@@ -2,7 +2,7 @@ import path from "node:path";
 import { CommandError } from "../errors.js";
 import { runInit } from "../commands/init.js";
 import { runExplore } from "../commands/explore.js";
-import { runRegenerateVisuals } from "../commands/regenerate-visuals.js";
+import { runRegenerateVisuals, runReviseDirection } from "../commands/regenerate-visuals.js";
 import { runApprove } from "../commands/approve.js";
 import { runBrief } from "../commands/brief.js";
 import { runAudit } from "../commands/audit.js";
@@ -14,6 +14,7 @@ import {
   runDirectionNew,
   runDirectionShow,
   runDirectionFork,
+  runDirectionDeleteVersion,
   runRule,
   runPromote,
   MEMORY_ACTIONS,
@@ -22,6 +23,7 @@ import {
 } from "../commands/direction.js";
 import { loadConfig, directionsRoot } from "../config.js";
 import { runAsset, type AssetCommandResult } from "../commands/asset.js";
+import { runBoard } from "../commands/board.js";
 import { runSurface, type SurfaceCommandResult } from "../commands/surface.js";
 
 export interface ArgSpec {
@@ -267,8 +269,9 @@ Positional mode writes one version folder \`brand/directions/<directionId>/versi
 - \`direction-version.json\` (the version record — content + extracted tokens)
 - \`brief-snapshot.md\` (frozen projection of that direction's brief at generation time)
 - \`context-snapshot.md\` (the exact rendered context — global hard rules, guidelines, direction memory, then the brief — that was sent to the model)
-- \`style-tile-prompt.md\` and \`homepage-mockup-prompt.md\`
-- \`style-tile.png\` and \`homepage-mockup.png\` (only when \`OPENAI_API_KEY\` is set and generation succeeds)
+- \`style-tile-prompt.md\`
+- \`style-tile.png\` (only when \`OPENAI_API_KEY\` is set and generation succeeds)
+- Deterministic token specimens; named Boards are generated separately.
 
 ## Examples
 
@@ -292,59 +295,44 @@ keyart explore --from warm-editorial --count 2
 
 const regenerateMeta: CommandMeta = {
   name: "regenerate",
-  summary: "Iterate a direction: append a new version (board + re-extracted tokens); text-safe.",
+  summary: "Alias of direction revise: append a new foundation without updating Boards or assets.",
   args: [
     { name: "directionId", required: true, description: "The direction to regenerate (e.g. direction-a)." },
   ],
   flags: [
+    { name: "--version", description: "Exact source foundation to revise (default head).", takesValue: true },
+    { name: "--reference", description: "One-shot crop/image reference path; not added to moodboard.", takesValue: true },
     { name: "--tweak", description: "One-shot art direction appended to the image prompts for this pass only (not saved).", takesValue: true },
   ],
   dispatchable: true,
   helpDoc: `# keyart regenerate
 
-The single iterate path: **feedback → regenerate appends a new version** to a direction. Addressed by \`<directionId>\`, it reads the direction's **head** version, re-renders BOTH graphics + the deterministic style board, re-extracts the unlocked tokens, and **appends** the result as the next version — the head advances and prior versions are never touched (append-only history). The direction's text/copy is **never** rewritten; only the new version's re-extracted tokens change. Like \`explore\`, regenerate is a generation action dispatchable through any \`keyart_*\` facade (it is NOT a \`serve\`-only studio mutation).
+Compatibility alias for \`direction revise\`: append a new foundation to the same creative route, without revising any Board or asset.
 
 ## Usage
 
-CLI:
-\`\`\`
-keyart regenerate <directionId> [--tweak "<text>"]
-\`\`\`
-
-\`keyart_brand\`:
-\`\`\`json
-{ "command": "regenerate", "input": ["direction-a", "--tweak", "cooler"] }
-\`\`\`
+\`keyart direction revise <directionId> [--version <sourceVersion>] [--tweak "<change>"]\`
+\`keyart regenerate <directionId> [--version <sourceVersion>] [--tweak "<change>"]\`
 
 ## Arguments
 
-- \`directionId\` (required) — the direction to regenerate (e.g. \`direction-a\`). Regenerate always advances that direction's head.
+The direction id is required. Drafts need Generate v1 first.
 
 ## Flags
 
-- \`--tweak <text>\` — one-shot art direction appended to each image prompt for THIS pass only; never persisted.
+--version selects an immutable source foundation (default head). --tweak steers the new foundation for this pass.
 
 ## Outputs
 
-A NEW version folder \`brand/directions/<directionId>/versions/<versionId>/\` (the direction's new head):
-
-- \`style-board.md\` and \`style-board.svg\` — the **deterministic** style board re-rendered from the new version's tokens with NO model call (always written when the version has tokens; lands even keyless / with no image model).
-- \`style-tile.png\`, \`homepage-mockup.png\`, and the evocative \`style-board.png\` — regenerated via the reference-conditioned image model (only when \`OPENAI_API_KEY\` and an image model are configured and generation succeeds).
-- \`direction-version.json\`, the frozen \`brief-snapshot.md\` / \`context-snapshot.md\`, and both prompt \`.md\` files.
+A new version folder with the style tile, extracted/finished tokens, frozen brief/context, prompt and deterministic token specimen. No hidden homepage or Board generation. History and the approved pointer remain unchanged.
 
 ## Examples
 
-\`\`\`
-keyart regenerate direction-a
-keyart regenerate direction-a --tweak "warmer, more editorial"
-\`\`\`
+\`keyart direction revise warm --version v1 --tweak "A cooler palette"\`
 
 ## Notes
 
-- **Appends a version — never edits in place.** Regenerate advances the direction's head; prior versions stay frozen (append-only history).
-- **Text-safe.** Regenerate never edits the direction's copy or rules — it re-renders the deterministic board and re-generates the PNGs, then re-extracts the unlocked tokens.
-- **Token-locked.** Each image prompt is locked to the version's tokens (color/type), so a locked role is held verbatim while unlocked roles rotate to the new tile — the imagery stays a strict projection of the tokens.
-- **Dry-run safe.** Without a key / image model it still appends a cloned-token version, re-renders the deterministic board, and reports the skipped images; it never throws.`,
+Tokens come from the new tile's printed labels; explicit user locks remain verbatim. Keyless runs preserve the file workflow with explicit image-unavailable provenance. Updating Boards is a separate \`board update --version\` action.`,
 };
 
 const approveMeta: CommandMeta = {
@@ -794,7 +782,9 @@ regenerateMeta.run = async (ctx) => {
   const result = await runRegenerateVisuals({
     cwd: ctx.cwd,
     directionId: positionals[0],
+    versionId: flagValue(flags, "version"),
     tweak: typeof flags.tweak === "string" ? flags.tweak : undefined,
+    referencePath: typeof flags.reference === "string" ? flags.reference : undefined,
   });
   // jobs.ts stores the full result (job.result = result) so /api/jobs/:id returns
   // result.contradictionReport for free — no jobs.ts / server-api.ts change needed.
@@ -982,13 +972,13 @@ promoteMeta.run = async (ctx) => {
 const directionMeta: CommandMeta = {
   name: "direction",
   summary:
-    "Work with directions: draft, fork, create, lifecycle (archive/revive), feedback, memory, brief.",
+    "Create or revise directions, manage working briefs, lifecycle and scoped memory.",
   args: [
     {
       name: "verb",
       required: true,
       description:
-        "One of: new, list, show, status, fork, create, archive, reject, park, revive, feedback, memory, brief, reconcile.",
+        "One of: new, list, show, status, fork, create, revise, delete-version, archive, reject, park, revive, feedback, memory, brief, reconcile.",
     },
     {
       name: "id",
@@ -1015,6 +1005,12 @@ const directionMeta: CommandMeta = {
     },
   ],
   flags: [
+    { name: "--version", description: "Source for revise (default head); exact required foundation id for delete-version.", takesValue: true },
+    { name: "--reference", description: "One-shot crop/image reference for revise; not added to moodboard.", takesValue: true },
+    { name: "--asset", description: "Stored crop thumbnail path accompanying direction feedback.", takesValue: true },
+    { name: "--yes", description: "Confirm permanent delete-version; assets and Boards are retained.", takesValue: false },
+    { name: "--expected-version", description: "Direction record concurrency version for delete-version.", takesValue: true },
+    { name: "--tweak", description: "Foundation revision instructions.", takesValue: true },
     { name: "--describe", description: "Seed the draft's brief notes (direction new only; soft intent words — never hexes or font families).", takesValue: true },
     { name: "--name", description: "Display name override (direction fork only; defaults to the source's name).", takesValue: true },
     { name: "--count", description: "How many forks to mint (direction fork only; default: 1).", takesValue: true },
@@ -1041,7 +1037,12 @@ const directionMeta: CommandMeta = {
   dispatchable: true,
   helpDoc: `# keyart direction
 
-Work with direction aggregates — the COMPLETE verb family: \`new\`, \`list\`, \`show\`, \`status\`, \`fork\`, \`create\`, \`archive\`, \`reject\`, \`park\`, \`revive\`, \`feedback\`, \`memory\`, \`brief\`, \`reconcile\`. Each direction lives under \`brand/directions/<id>/\` with \`direction.yaml\`, isolated \`memory.yaml\`, the generated \`brief.md\` projection, and \`versions/\`.
+Create direction starts a separate route. \`direction new\` plus \`explore\` realizes a fresh route; an explicit reference is optional. Structured \`direction create <json> --from <id>\` retains its authored-input semantics.
+\`direction revise <id> [--version <source>] [--tweak <text>]\` appends a foundation in place in the same route; it never changes history, approval, Boards or assets. Working brief edits are drafts until generation.
+
+\`direction delete-version <id> --version <versionId> --yes\` permanently deletes exactly one foundation (never the approved foundation). Boards and assets remain unchanged. No replacement is selected or requested at deletion time; a later asset revision with a missing foundation requires the user's explicit replacement via \`--version\`.
+
+Work with direction aggregates — the COMPLETE verb family: \`new\`, \`list\`, \`show\`, \`status\`, \`fork\`, \`create\`, \`revise\`, \`delete-version\`, \`archive\`, \`reject\`, \`park\`, \`revive\`, \`feedback\`, \`memory\`, \`brief\`, \`reconcile\`. Each direction lives under \`brand/directions/<id>/\` with \`direction.yaml\`, isolated \`memory.yaml\`, the generated \`brief.md\` projection, and \`versions/\`.
 
 The two-layer model: \`direction new\` mints a keyless DRAFT (a direction with zero versions); \`explore <id>\` generates v1 into it; feedback → \`regenerate <id>\` appends versions. \`fork\` copies a direction's brief + moodboard into fresh drafts; \`create\` persists host-agent-authored content at v1, seeded from an existing direction (\`--from\`, required).
 
@@ -1055,6 +1056,8 @@ keyart direction show <id>
 keyart direction status <id>
 keyart direction fork <id> [--name <name>] [--count <n>] [--with-memory]
 keyart direction create '<json>' --from <directionId>
+keyart direction revise <id> [--version <source>] [--tweak <text>]
+keyart direction delete-version <id> --version <versionId> --yes [--expected-version <n>]
 keyart direction archive <id>
 keyart direction reject <id> [--note <text>]
 keyart direction park <id>
@@ -1113,7 +1116,7 @@ keyart direction reconcile <id> --action keep|retire|supersede|promote --contrad
 
 \`direction create '<json>' --from <directionId>\` — the ONE declared form: the JSON payload is the single positional, and the REQUIRED \`--from\` names the existing direction whose brief seeds the new one. To start from scratch use \`direction new <name>\` instead. Keyless — no model call; seed tokens are built deterministically from the seed direction's brief intent and memory color-locks, and become EXTRACTED from a style tile on the first \`regenerate\`. A \`tokens\` payload key is rejected — tokens are read off the generated imagery, never authored. No hex or catalog font family names in \`character\`/\`usage\` prose (rejected at create time).
 
-The \`<json>\` payload fields: \`name\` (required), \`summary\` (required), \`positioning?\`, structured \`character\` (mood/composition/layout/imagery/texture/rhythm), \`usage\` (\`rules\`/\`antiRules\`), \`copyExamples\` (headline/subheadline/cta), optional \`styleTilePrompt\`/\`homepageMockupPrompt\`.
+The \`<json>\` payload fields: \`name\` (required), \`summary\` (required), \`positioning?\`, structured \`character\` (mood/composition/layout/imagery/texture/rhythm), \`usage\` (\`rules\`/\`antiRules\`), \`copyExamples\` (headline/subheadline/cta), optional \`styleTilePrompt\`.
 
 ## Lifecycle (archive / reject / park / revive)
 
@@ -1216,6 +1219,18 @@ directionMeta.run = async (ctx) => {
   const { positionals, flags } = parseArgs(directionMeta, ctx.input);
   const verb = positionals[0];
   switch (verb) {
+    case "delete-version": {
+      if (positionals.length !== 2) throw new CommandError("direction delete-version requires exactly one direction id.");
+      const expected = flagValue(flags, "expected-version");
+      await runDirectionDeleteVersion({ cwd: ctx.cwd, directionId: positionals[1], versionId: flagValue(flags, "version"), confirmed: flags.yes === true,
+        expectedVersion: expected === undefined ? undefined : Number(expected) });
+      return { summary: `Permanently deleted foundation ${positionals[1]}@${flagValue(flags, "version")}; assets and Boards retained.`, filesWritten: [] };
+    }
+    case "revise": {
+      if (positionals.length !== 2) throw new CommandError("direction revise requires exactly one direction id.");
+      const result = await runReviseDirection({ cwd: ctx.cwd, directionId: positionals[1], versionId: flagValue(flags, "version"), tweak: flagValue(flags, "tweak"), referencePath: flagValue(flags, "reference") });
+      return { summary: `Revised foundation ${result.directionId}@${result.versionId}; Boards and assets unchanged.`, filesWritten: result.filesWritten };
+    }
     case "new": {
       const result = await runDirectionNew({
         cwd: ctx.cwd,
@@ -1310,6 +1325,7 @@ directionMeta.run = async (ctx) => {
         reason: flagValue(flags, "reason"),
         note: flagValue(flags, "note"),
         body: flagValue(flags, "body"),
+        asset: flagValue(flags, "asset"),
         kind: flagValue(flags, "kind"),
         author: flagValue(flags, "author"),
         channel: flagValue(flags, "channel"),
@@ -1337,99 +1353,143 @@ directionMeta.run = async (ctx) => {
 
 const assetMeta: CommandMeta = {
   name: "asset",
-  summary: "Extract, iterate, list, retire, and pack direction-scoped standalone brand assets.",
+  summary: "Generate, extract, revise, list, retire and pack foundation-anchored usable assets.",
   args: [
-    { name: "verb", required: true, description: "One of: extract, regenerate, list, remove, pack." },
-    { name: "assetId", required: false, description: "regenerate/remove: the target extracted-asset id (e.g. yak-mascot)." },
+    { name: "verb", required: true, description: "One of: generate, extract, revise, regenerate, list, remove, pack." },
+    { name: "assetId", required: false, description: "Target asset id for revise/regenerate/remove." },
   ],
   flags: [
-    { name: "--direction", description: "Direction id: the extraction source (extract, required), a listing filter (list), or the pack target (pack; default: the approved direction).", takesValue: true },
-    { name: "--describe", description: "What to isolate, e.g. \"the yak mascot\" (extract only, required).", takesValue: true },
-    { name: "--image", description: "Source image name: styleTile (default) | homepageMockup | moodboard (extract only).", takesValue: true },
-    { name: "--version", description: "Source direction versionId (extract only; default: the direction's head).", takesValue: true },
-    { name: "--crop", description: "Path to a crop reference image narrowing the subject (extract only).", takesValue: true },
-    { name: "--name", description: "Display name for the new asset (extract only; default: derived from --describe).", takesValue: true },
-    { name: "--tweak", description: "The change to apply, e.g. \"make it face left\" (regenerate only, required).", takesValue: true },
-    { name: "--remember", description: "Also log the tweak as a direction-scoped memory entry (regenerate only; default: asset-local, no memory write).", takesValue: false },
-    { name: "--author", description: "Attribution for the --remember memory entry (regenerate only; default: cli).", takesValue: true },
+    { name: "--direction", description: "Owning direction; required for generate/extract, otherwise defaults to approved direction.", takesValue: true },
+    { name: "--describe", description: "Requested artwork or element to extract (generate/extract, required).", takesValue: true },
+    { name: "--version", description: "Explicit foundation for generate/extract; optional replacement for revise, required when its original foundation is gone.", takesValue: true },
+    { name: "--board", description: "Board source for extraction; requires --revision.", takesValue: true },
+    { name: "--revision", description: "Exact Board extraction source or asset revision source.", takesValue: true },
+    { name: "--image", description: "Foundation source image: styleTile.", takesValue: true },
+    { name: "--crop", description: "Stored local crop reference narrowing the extraction subject.", takesValue: true },
+    { name: "--name", description: "Display name for a generated or extracted asset.", takesValue: true },
+    { name: "--tweak", description: "Local change for revise (regenerate alias).", takesValue: true },
+    { name: "--author", description: "Attribution for a remembered tweak.", takesValue: true },
+    { name: "--remember", description: "Also record the local tweak in direction memory.", takesValue: false },
   ],
   dispatchable: true,
   helpDoc: `# keyart asset
 
-Extract a standalone, direction-scoped visual element off a direction's imagery, iterate it with a tweak, list/retire it, and pack a direction's active assets for handoff. Assets are evocative-imagery-tier only — they never touch the token spine (\`brand.css\`, the deterministic board) or a direction's record.
+Generate usable artwork directly, or extract an element from an identified foundation tile or Board revision. Assets never supply tokens.
 
 ## Usage
 
-CLI:
-\`\`\`
-keyart asset extract --direction <dirId> --describe "<text>" [--image styleTile|homepageMockup|moodboard] [--version <versionId>] [--crop <path>] [--name <name>]
-keyart asset regenerate <assetId> --tweak "<text>" [--remember] [--author <author>]
-keyart asset list [--direction <dirId>]
-keyart asset remove <assetId>
-keyart asset pack [--direction <dirId>]
-\`\`\`
-
-\`keyart_brand\`:
-\`\`\`json
-{ "command": "asset", "input": ["extract", "--direction", "direction-a", "--describe", "the yak mascot"] }
-{ "command": "asset", "input": ["regenerate", "yak-mascot", "--tweak", "make it face left"] }
-{ "command": "asset", "input": ["list", "--direction", "direction-a"] }
-{ "command": "asset", "input": ["remove", "yak-mascot"] }
-{ "command": "asset", "input": ["pack", "--direction", "direction-a"] }
+\`\`\`sh
+keyart asset generate --direction <id> --version <v> --name <name> --describe "<brief>"
+keyart asset extract --direction <id> --version <v> --describe "<element>"
+keyart asset extract --direction <id> --board <boardId> --revision <r> --describe "<element>"
+keyart asset revise <assetId> --direction <id> --tweak "<text>" [--revision <r>] [--version <foundation>]
+keyart asset list --direction <id>
+keyart asset remove <assetId> --direction <id>
+keyart asset pack --direction <id>
 \`\`\`
 
-## Arguments
+## Arguments and flags
 
-- \`verb\` (required) — one of \`extract\`, \`regenerate\`, \`list\`, \`remove\`, \`pack\`.
-- \`assetId\` (required for \`regenerate\`/\`remove\` only) — the target extracted-asset id (e.g. \`yak-mascot\`).
-
-## Flags
-
-- \`--direction <dirId>\` — the extraction source direction (\`extract\`, required), a listing filter (\`list\`), or the pack target (\`pack\`; default: the approved direction's).
-- \`--describe <text>\` (\`extract\`, required) — what to isolate, e.g. \`"the yak mascot"\`.
-- \`--image <name>\` (\`extract\` only) — the source image to extract from: \`styleTile\` (default), \`homepageMockup\`, or \`moodboard\`.
-- \`--version <versionId>\` (\`extract\` only) — the source direction's versionId (default: its head).
-- \`--crop <path>\` (\`extract\` only) — a crop reference image narrowing the subject.
-- \`--name <name>\` (\`extract\` only) — display name for the new asset (default: derived from \`--describe\`).
-- \`--tweak <text>\` (\`regenerate\`, required) — the change to apply, e.g. \`"make it face left"\`.
-- \`--remember\` (\`regenerate\` only) — also log the tweak as a direction-scoped memory entry (default: asset-local, no memory write).
-- \`--author <author>\` (\`regenerate\` only) — attribution for the \`--remember\` entry (default \`cli\`).
+Generate and foundation extraction require an explicit --version; drafts need Generate v1 first.
+Board extraction requires --board and --revision; its foundation is that source revision's recorded version.
+--crop supplies a local crop; --image accepts styleTile only. --name names either new origin.
+Revision retains the selected asset source's foundation unless --version explicitly selects a replacement; --revision selects an older asset source. If the original foundation was deleted, ask the user for a replacement version before proposing revision. Never silently use latest, approved or focus. Reading/downloading assets needs no replacement foundation.
+--remember additionally records a tweak in direction memory; --author attributes it.
+\`asset regenerate\` remains an alias of \`asset revise\`.
 
 ## Outputs
 
-- \`extract\` / \`regenerate\` — a new version under \`brand/directions/<directionId>/extracted-assets/<assetId>/versions/<versionId>/\` (\`asset-prompt.md\`, and \`asset.png\` when a key/image model produced one) plus the asset's \`asset.json\` index.
-- \`list\` — no files; prints each active asset's id, direction, head version, version count, and \`png=<path>\` — the cwd-relative path to the head PNG, ready to copy into the consuming app (pending assets say so instead of a path).
-- \`remove\` — the same \`asset.json\` index, carrying a non-destructive \`retiredAt\` marker.
-- \`pack\` — \`brand/generated/asset-pack/<directionId>/\` (per-asset PNGs, \`contact-sheet.svg\`/\`.md\`, \`tokens.json\`, \`pack-manifest.json\`; each manifest row states its packed \`file\` name explicitly). The pack is also refreshed automatically by \`approve\`, and the codified implementation brief + cursor rules list the shipped assets — run \`pack\` explicitly to refresh after extracting or retiring an asset between approves.
+Append-only versions under extracted-assets, with formatVersion 2, foundation, generated/extracted provenance, exact prompt/context and pending/completed/failed state. Pending/failed attempts never advance the completed head.
+List prints completed PNG paths; pack projects completed images and honest pending rows with each asset's actual foundation. Packing or approval does not regenerate stale assets.
+AssetRef remains a separate input reference.
 
 ## Examples
 
-\`\`\`
-keyart asset extract --direction direction-a --describe "the yak mascot"
-keyart asset regenerate yak-mascot --tweak "make it face left"
-keyart asset regenerate yak-mascot --tweak "smile more" --remember --author tim
-keyart asset list --direction direction-a
-keyart asset remove yak-mascot
-keyart asset pack --direction direction-a
-\`\`\`
+\`keyart asset generate --direction warm --version v1 --name Mascot --describe "A welcoming mascot"\`
 
 ## Notes
 
-- **Keyless/dry-run parity.** Every verb dispatches without \`OPENAI_API_KEY\`; \`extract\`/\`regenerate\` degrade to a dry-run (prompt + index written, no PNG) through the underlying asset cores.
-- **\`remove\` is a non-destructive, idempotent retire** — it sets a \`retiredAt\` marker (never deletes files); retiring an already-retired asset is a no-op that preserves the original timestamp.
-- **Asset tweaks are asset-local by default.** \`--remember\` on \`regenerate\` additionally logs a direction-scoped feedback entry, bridging the tweak into that direction's memory.
-- **\`ExtractedAsset\` ≠ \`AssetRef\`.** An extracted asset is a produced, versioned, standalone artifact with its own tree — distinct from the path-only \`AssetRef\` moodboard/kept-crop references recorded in \`direction.yaml\`. Neither record converts into the other.
-- \`list\` excludes retired assets by default (per-direction isolation) — pass \`--direction\` to filter to one direction's assets.`,
+Keyless runs write prompts and pending attempts. A foundation without a tile remains pending even with a key. Unsupported old records require the documented one-time conversion; no automatic migration. Retire is non-destructive and idempotent.`,
+};
+
+const boardMeta: CommandMeta = {
+  name: "board",
+  summary: "Create, revise, inspect, retire and explicitly update Boards against frozen foundations.",
+  args: [
+    { name: "verb", required: true, description: "One of: create, revise, update, list, show, retire." },
+    { name: "boardId", required: false, description: "Board identity for revise/show/retire." },
+  ],
+  flags: [
+    { name: "--direction", description: "Owning direction (required).", takesValue: true },
+    { name: "--version", description: "Target foundation; explicit for create/update, latest head default for revise.", takesValue: true },
+    { name: "--revision", description: "Source Board revision; independent of target foundation; none pins no source.", takesValue: true },
+    { name: "--name", description: "Board name on create.", takesValue: true },
+    { name: "--describe", description: "Durable local Board instructions on create.", takesValue: true },
+    { name: "--tweak", description: "Local revision instructions, retained for later updates.", takesValue: true },
+    { name: "--board", description: "Update a single Board instead of all active Boards.", takesValue: true },
+    { name: "--resume", description: "Retry unfinished entries of this captured batch.", takesValue: true },
+    { name: "--captured", description: "Exact JSON entries captured before confirmation.", takesValue: true },
+    { name: "--instruction-version", description: "Expected instruction version captured before confirmation.", takesValue: true },
+    { name: "--include-retired", description: "Include retired Boards in list.", takesValue: false },
+  ],
+  dispatchable: true,
+  helpDoc: `# keyart board
+
+Boards are named visual studies with durable local intent and independent revision histories; they never redefine brand tokens.
+
+## Usage
+
+\`\`\`sh
+keyart board create --direction <id> --version <v> --name <name> --describe "<brief>"
+keyart board revise <boardId> --direction <id> [--revision <r>] [--version <v>] [--tweak "<text>"]
+keyart board update --direction <id> --version <v> [--board <id>]
+keyart board update --direction <id> --resume <batchId>
+keyart board list --direction <id>
+keyart board show <boardId> --direction <id> [--revision <r>]
+keyart board retire <boardId> --direction <id>
+\`\`\`
+
+## Arguments and flags
+
+Create/update require explicit foundations. Revise defaults its target to latest direction head and its source to the completed Board head; select either independently, including historical versions.
+A captured confirmation pins --version, --revision and --instruction-version. --revision none pins no source. Batch confirmations carry --captured JSON.
+--include-retired is list-only.
+
+## Outputs
+
+Direction-owned boards/<id>/board.json and append-only revisions with foundation/source/instruction provenance, prompt/context files and honest render status.
+Update captures an active set once. --resume retries unfinished entries of that same manifest; successful entries are not regenerated. Assets and approval are excluded.
+
+## Examples
+
+\`keyart board create --direction warm --version v1 --name Instagram --describe "An editorial launch post"\`
+
+## Notes
+
+Local color/font changes teach foundation revision. Keyless/missing-image runs remain pending. Retire preserves history. Unsupported formats require deliberate one-time conversion.`,
+  run: async (ctx) => {
+    const { positionals, flags } = parseArgs(boardMeta, ctx.input);
+    const result = await runBoard(ctx.cwd, positionals, {
+      direction: flagValue(flags, "direction"), version: flagValue(flags, "version"),
+      revision: flagValue(flags, "revision"), name: flagValue(flags, "name"), describe: flagValue(flags, "describe"),
+      tweak: flagValue(flags, "tweak"), board: flagValue(flags, "board"), resume: flagValue(flags, "resume"),
+      captured: flagValue(flags, "captured"), instructionVersion: flagValue(flags, "instruction-version"), includeRetired: flags["include-retired"] === true,
+    });
+    return { summary: result.summary, filesWritten: result.filesWritten };
+  },
 };
 
 const assetFlag = flagValue;
 
 function assetSummary(result: AssetCommandResult): string {
   switch (result.verb) {
+    case "generate":
+    case "revise":
+      return `Asset "${result.assetId}" (${result.versionId}): ${result.status}${result.dryRun ? " — dry-run" : ""}.`;
     case "extract":
-      return `Extracted asset "${result.assetId}" (${result.versionId})${result.dryRun ? " — dry-run, no PNG" : ""}.`;
+      return `Extracted asset "${result.assetId}" (${result.versionId}): ${result.status}${result.dryRun ? " — dry-run, no PNG" : ""}.`;
     case "regenerate":
-      return `Regenerated asset "${result.assetId}" (${result.versionId})${result.dryRun ? " — dry-run, no PNG" : ""}.`;
+      return `Revised asset "${result.assetId}" (${result.versionId}): ${result.status}${result.dryRun ? " — dry-run, no PNG" : ""}.`;
     case "list":
       return `${plural(result.assets.length, "extracted asset")} on direction "${result.directionId}".`;
     case "remove":
@@ -1447,6 +1507,8 @@ assetMeta.run = async (ctx) => {
     direction: assetFlag(flags, "direction"),
     describe: assetFlag(flags, "describe"),
     image: assetFlag(flags, "image"),
+    board: assetFlag(flags, "board"),
+    revision: assetFlag(flags, "revision"),
     version: assetFlag(flags, "version"),
     crop: assetFlag(flags, "crop"),
     name: assetFlag(flags, "name"),
@@ -1586,10 +1648,10 @@ Resolve every ACTIVE slot of the surface manifest against the approved pointer's
 
 ## fill
 
-Close asset-slot gaps IN-IDIOM: generates each unresolved \`icon\`/\`illustration\` slot as an ORDINARY \`ExtractedAsset\`, through the EXISTING asset-extraction pipeline, against the approved direction's PINNED version — the slot's description + context (legibility at the smallest size, silhouette contrast against its \`sitsOn\` role, \`usedIn\`, \`tone\`, \`note\`) is composed into the extract \`describe\` text, and the isolation directive + \`composeArtDirection\` MUST/PREFER/AVOID block ride along automatically via the existing extract prompt compiler. The minted asset is stamped with the slot id (\`slotId\`) so the very next \`surface bind\` resolves it.
+Close asset-slot gaps IN-IDIOM: generates each unresolved \`icon\`/\`illustration\` slot as an ORDINARY \`ExtractedAsset\`, through the direct asset-generation pipeline, against the approved direction's PINNED version — the slot's description + context (legibility at the smallest size, silhouette contrast against its \`sitsOn\` role, \`usedIn\`, \`tone\`, \`note\`) is composed into the generation \`describe\` text. The frozen foundation tokens and style tile remain authoritative; current global rules and direction memory also apply. The minted asset is stamped with the slot id (\`slotId\`) so the very next \`surface bind\` resolves it.
 
 - **Target selection.** No \`--slot\`: fills every \`icon\`/\`illustration\` slot currently a \`gap\` (manifest order); zero gaps ⇒ \`No asset-slot gaps to fill.\`, not an error. \`--slot <id>\`: fills exactly that slot — rejected with a teaching \`CommandError\` when it names a \`color-role\`/\`type-role\` (those derive deterministically in \`bind\`, never fill), a \`kind: "other"\` slot (taxonomy demand — reclassify via \`surface patch\` first), an unknown/retired slot, or a slot already \`bound\`/\`pending\` (names the claiming asset id and the remedy: \`asset regenerate --tweak\` or \`asset remove\`). Fill NEVER mints a second claimant for a slot.
-- **Key-gated exactly like \`asset extract\`.** Keyless ⇒ every gap becomes an honest pending record (prompt + index + \`slotId\` written, NO image, NO fabrication); the next \`bind\` reports the slot \`pending\`, not \`gap\`. A keyed-but-failed generation surfaces the extract pipeline's existing \`imageSkips\` warnings.
+- **Key-gated exactly like \`asset generate\`.** Keyless ⇒ every gap becomes an honest pending record (prompt + index + \`slotId\` written, NO image, NO fabrication); the next \`bind\` reports the slot \`pending\`, not \`gap\`. A keyed-but-failed generation surfaces the generation pipeline's \`imageSkips\` warnings.
 - **The result is an ordinary asset.** Tweakable via \`asset regenerate --tweak\` (the \`slotId\` linkage survives), retirable via \`asset remove\` (drops it from the next bind, reverting the slot to \`gap\`), packed by \`asset pack\`/\`approve\` — and NEVER a token source.
 - Fill performs no binding write itself — run \`surface bind\` afterward to refresh \`binding.json\`.
 
@@ -1738,6 +1800,7 @@ const COMMANDS: CommandMeta[] = [
   doctorMeta,
   regenerateMeta,
   directionMeta,
+  boardMeta,
   assetMeta,
   surfaceMeta,
 ];
@@ -1776,7 +1839,7 @@ const GROUPS: GroupMeta[] = [
     tool: "keyart_brand",
     title: "Brand",
     blurb: "Brand directions, per-direction memory, and global rules.",
-    commands: ["direction", "explore", "regenerate", "approve", "rule", "promote", "asset", "surface"],
+    commands: ["direction", "explore", "regenerate", "approve", "rule", "promote", "board", "asset", "surface"],
   },
   {
     id: "implement",

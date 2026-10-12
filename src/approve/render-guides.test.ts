@@ -41,7 +41,6 @@ const TOKENED_DIRECTION: DirectionContent = {
   summary: "A tokened direction with structured palette + typography.",
   positioning: "Positioning prose.",
   character: { mood: "warm earthy prose that would MISMATCH the tokens if used" },
-  homepageMockupPrompt: "Homepage prompt.",
   styleTilePrompt: "Style tile prompt.",
   copyExamples: { headline: "H", subheadline: "S", cta: "C" },
   usage: { rules: ["Rule one", "Rule two", "Rule three"], antiRules: ["Anti one"] },
@@ -73,7 +72,6 @@ const SAMPLE_DIRECTION: DirectionContent = {
   summary: "A bold, modern direction emphasizing clean geometry and strong contrast.",
   positioning: "Position the brand as a confident, forward-thinking leader.",
   character: { mood: "High-contrast palette, geometric sans-serif typography, generous whitespace, bold accent colors." },
-  homepageMockupPrompt: "Design a bold, modern homepage mockup with geometric shapes.",
   styleTilePrompt: "Create a style tile for a bold, modern brand with color swatches.",
   copyExamples: {
     headline: "Built for what comes next",
@@ -190,7 +188,6 @@ describe("renderImagePrompts", () => {
   it("contains both style tile and homepage mockup prompts", () => {
     const output = renderImagePrompts(SAMPLE_DIRECTION);
     expect(output).toContain(SAMPLE_DIRECTION.styleTilePrompt);
-    expect(output).toContain(SAMPLE_DIRECTION.homepageMockupPrompt);
   });
 });
 
@@ -499,11 +496,6 @@ describe("runApprove integration", () => {
     await fs.writeFile(
       path.join(versionDir, versionId, "style-tile-prompt.md"),
       SAMPLE_DIRECTION.styleTilePrompt,
-      "utf-8",
-    );
-    await fs.writeFile(
-      path.join(versionDir, versionId, "homepage-mockup-prompt.md"),
-      SAMPLE_DIRECTION.homepageMockupPrompt,
       "utf-8",
     );
     await core.appendVersion(directionId, versionId);

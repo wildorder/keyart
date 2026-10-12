@@ -63,7 +63,7 @@ function assertBuilt(root: string): void {
   if (!fsSync.existsSync(path.join(root, "dist", "cli.js"))) {
     throw new Error(
       "dist/ is not built — run `npm run build` before `vitest run`. " +
-        "(The canonical gate is `npm run build && npx tsc --noEmit && npx vitest run`.)",
+        "(The canonical gate is `npm run build && npm run typecheck && npm test`.)",
     );
   }
 }
@@ -354,7 +354,7 @@ describe("packaged contents (WS-03: license & metadata)", () => {
     expect(pkg.scripts.prepublishOnly).toContain("npm test");
     expect(pkg.scripts.prepublishOnly).toContain("npm run test:package");
     expect(pkg.scripts["test:package"]).toBeTruthy();
-    expect(pkg.scripts.typecheck).toBe("tsc --noEmit");
+    expect(pkg.scripts.typecheck).toBe("tsc --noEmit && tsc -p tsconfig.ui.json");
     expect(pkg.scripts.build).toContain("tsconfig.build.json");
   });
 });

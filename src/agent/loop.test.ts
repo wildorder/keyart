@@ -9,6 +9,12 @@ import { createSessionStore } from "./session.js";
 import { runChatTurn, resumeChatTurn } from "./loop.js";
 import type { ChatEvent, LoopDeps } from "./loop.js";
 import type { AssistantTurn, ChatMessage, CompletionChunk } from "./model.js";
+import { buildPlaceholderDirections } from "../explore/placeholders.js";
+import { writeDirectionVersion } from "../explore/write-direction-version.js";
+import { runAssetGenerate } from "../asset/extract.js";
+import { runBoardCreate } from "../board/operations.js";
+import { runDeleteDirectionVersion } from "../direction/delete-version.js";
+import { readAssetIndex, readAssetVersion } from "../asset/asset-store.js";
 
 vi.mock("../config.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../config.js")>();
@@ -100,7 +106,90 @@ function makeDeps(overrides: Partial<LoopDeps> & { complete: LoopDeps["complete"
   };
 }
 
+async function seedFoundation(id = "v1") {
+  await writeDirectionVersion({ cwd: tmpDir, config, directionsDir: config.brand.directions!, directionId: "moody",
+    version: { ...buildPlaceholderDirections("A friendly brand")[0], id, createdAt: new Date().toISOString(), briefSnapshot: "Frozen brief", contextSnapshot: "Frozen context" },
+    referenceImagePaths: [], skipImages: true });
+}
+
 describe("runChatTurn / resumeChatTurn", () => {
+  it("asks for a missing asset foundation and waits for the user before proposing an explicitly pinned replacement", async () => {
+    await seedFoundation("v1");
+    const asset = await runAssetGenerate({ cwd: tmpDir, directionId: "moody", versionId: "v1", describe: "A bird" });
+    await seedFoundation("v2");
+    await runDeleteDirectionVersion({ cwd: tmpDir, directionId: "moody", versionId: "v1" });
+    const dir = path.join(config.brand.directions!, "moody");
+    const before = await readAssetIndex(dir, asset.assetId);
+    const { complete, calls } = scriptedComplete([
+      { turn: { toolCalls: [{ id: "try-revise", toolName: "asset_revise", arguments: { assetId: asset.assetId, tweak: "Facing left" } }] } },
+      { turn: { toolCalls: [{ id: "chosen-revise", toolName: "asset_revise", arguments: { assetId: asset.assetId, revision: asset.versionId, version: "v2", tweak: "Facing left" } }] } },
+      { turn: { content: "Started with your chosen foundation.", toolCalls: [] } },
+    ]);
+    const deps = makeDeps({ complete });
+    const session = createSessionStore().create({ directionId: "moody", versionId: "v2" });
+    const question = await collect(runChatTurn(deps, session, "Revise my bird to face left"));
+    expect(calls).toHaveLength(1);
+    expect(question.some(e => e.type === "assistant_message" && e.text.includes("foundation"))).toBe(true);
+    expect(question.some(e => e.type === "pending_approval")).toBe(false);
+    expect(question.at(-1)?.type).toBe("done");
+    expect(deps.dispatch).not.toHaveBeenCalled();
+    expect(deps.launchJob).not.toHaveBeenCalled();
+    expect(await readAssetIndex(dir, asset.assetId)).toEqual(before);
+    const proposed = await collect(runChatTurn(deps, session, "Use v2"));
+    expect(proposed.some(e => e.type === "pending_approval")).toBe(true);
+    expect(session.pending?.tokens).toEqual(expect.arrayContaining(["--version", "v2", "--revision", asset.versionId]));
+    await seedFoundation("v3");
+    session.context.versionId = "v3";
+    await collect(resumeChatTurn(deps, session, { approve: true }));
+    expect(deps.launchJob).toHaveBeenCalledWith("asset", expect.arrayContaining(["--version", "v2"]));
+    expect((await readAssetVersion(dir, asset.assetId, asset.versionId)).foundation.versionId).toBe("v1");
+  });
+
+  it("requires confirmation before permanently deleting the exact selected foundation", async () => {
+    await seedFoundation("v1");
+    await seedFoundation("v2");
+    const { complete } = scriptedComplete([
+      { turn: { toolCalls: [{ id: "delete", toolName: "direction_delete_version", arguments: { version: "v1" } }] } },
+      { turn: { content: "Deleted the selected foundation; assets remain.", toolCalls: [] } },
+    ]);
+    const deps = makeDeps({ complete });
+    const session = createSessionStore().create({ directionId: "moody", versionId: "v1" });
+    await collect(runChatTurn(deps, session, "Delete v1"));
+    expect(deps.dispatch).not.toHaveBeenCalled();
+    expect(session.pending?.leaf.mutates).toBe("destructive");
+    expect((await createDirectionCore(tmpDir, config).get("moody")).versions).toContain("v1");
+    session.context.versionId = "v2";
+    await collect(resumeChatTurn(deps, session, { approve: true }));
+    expect((await createDirectionCore(tmpDir, config).get("moody")).versions).toEqual(["v2"]);
+  });
+
+  it("resolves the Board source and latest target before confirmation and replays exact tokens after head/focus changes", async () => {
+    await seedFoundation();
+    const board = await runBoardCreate({ cwd: tmpDir, directionId: "moody", versionId: "v1", name: "Poster", describe: "An event poster" });
+    await seedFoundation("v2");
+    await createDirectionCore(tmpDir, config).create({ id: "other", name: "Other direction" });
+    const { complete } = scriptedComplete([
+      { turn: { toolCalls: [{ id: "board-call", toolName: "board_revise", arguments: { tweak: "Wide margins" } }] } },
+      { turn: { content: "Launched the confirmed revision.", toolCalls: [] } },
+    ]);
+    const deps = makeDeps({ complete });
+    const session = createSessionStore().create({ directionId: "moody", versionId: "v1", boardId: board.boardId, revisionId: board.revisionId });
+    const events = await collect(runChatTurn(deps, session, "revise this Board"));
+    expect(events.find((event) => event.type === "pending_approval")).toMatchObject({ arguments: {
+      direction: "moody", boardId: board.boardId, revision: board.revisionId, version: "v2", "instruction-version": 1,
+    } });
+    expect(deps.launchJob).not.toHaveBeenCalled();
+    expect(deps.dispatch).not.toHaveBeenCalled();
+    const tokens = [...session.pending!.tokens];
+    await seedFoundation("v3");
+    session.context = { directionId: "other", versionId: "unrelated" };
+    await collect(resumeChatTurn(deps, session, { approve: true }));
+    expect(deps.launchJob).toHaveBeenCalledExactlyOnceWith("board", tokens);
+    expect(tokens).toContain("v2");
+    expect(tokens).toContain(board.revisionId);
+    expect(tokens).not.toContain("v3");
+  });
+
   it("multi-turn thread: token streaming seals a prose bubble; history retained across turns", async () => {
     const { complete } = scriptedComplete([
       {
@@ -518,9 +607,12 @@ describe("runChatTurn / resumeChatTurn", () => {
   });
 
   it("asset_extract and asset_regenerate SUSPEND then launch as ('asset', tokens) jobs on approval (SC-08)", async () => {
+    await seedFoundation();
+    await createDirectionCore(tmpDir, config).create({ id: "different-focus", name: "Other" });
+    const asset = await runAssetGenerate({ cwd: tmpDir, directionId: "moody", versionId: "v1", describe: "A yak mascot", name: "Yak mascot" });
     const cases: Array<{ toolName: string; args: Record<string, unknown> }> = [
-      { toolName: "asset_extract", args: { direction: "direction-a", describe: "the yak mascot" } },
-      { toolName: "asset_regenerate", args: { assetId: "yak-mascot", tweak: "face left" } },
+      { toolName: "asset_extract", args: { direction: "moody", describe: "the yak mascot" } },
+      { toolName: "asset_regenerate", args: { assetId: asset.assetId, tweak: "face left" } },
     ];
 
     for (const c of cases) {
@@ -530,15 +622,19 @@ describe("runChatTurn / resumeChatTurn", () => {
       ]);
       const deps = makeDeps({ complete });
       const store = createSessionStore();
-      const session = store.create({ directionId: "moody" });
+      const session = store.create({ directionId: "moody", versionId: "v1" });
 
       const events = await collect(runChatTurn(deps, session, `run ${c.toolName}`));
       expect(deps.launchJob).not.toHaveBeenCalled();
       expect(events.some((e) => e.type === "pending_approval")).toBe(true);
+      const tokens = [...session.pending!.tokens];
+      expect(tokens).toContain(c.toolName === "asset_extract" ? "--version" : "--revision");
+      session.context = { directionId: "different-focus", versionId: "v9" };
 
       const resumeEvents = await collect(resumeChatTurn(deps, session, { approve: true }));
       expect(deps.launchJob).toHaveBeenCalledTimes(1);
       expect(deps.launchJob).toHaveBeenCalledWith("asset", expect.any(Array));
+      expect(deps.launchJob).toHaveBeenCalledWith("asset", tokens);
       expect(deps.dispatch).not.toHaveBeenCalled();
       const jobEvt = resumeEvents.find((e) => e.type === "job");
       expect(jobEvt).toMatchObject({ type: "job", kind: "asset" });
@@ -546,6 +642,7 @@ describe("runChatTurn / resumeChatTurn", () => {
   });
 
   it("asset_remove/asset_pack dispatch directly on approval, asset_list dispatches with no gate, and denial launches/dispatches nothing", async () => {
+    await seedFoundation();
     // asset_remove — destructive: suspends, then dispatches (never launchJob) on approval.
     {
       const { complete } = scriptedComplete([
@@ -616,7 +713,7 @@ describe("runChatTurn / resumeChatTurn", () => {
               {
                 id: "call_1",
                 toolName: "asset_extract",
-                arguments: { direction: "direction-a", describe: "the yak" },
+                arguments: { direction: "moody", version: "v1", describe: "the yak" },
               },
             ],
           },
@@ -627,7 +724,8 @@ describe("runChatTurn / resumeChatTurn", () => {
       const store = createSessionStore();
       const session = store.create({ directionId: "moody" });
 
-      await collect(runChatTurn(deps, session, "extract the yak"));
+      const proposed = await collect(runChatTurn(deps, session, "extract the yak"));
+      expect(proposed.some((event) => event.type === "pending_approval")).toBe(true);
       await collect(resumeChatTurn(deps, session, { approve: false }));
       expect(deps.launchJob).not.toHaveBeenCalled();
       expect(deps.dispatch).not.toHaveBeenCalled();

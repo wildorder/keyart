@@ -13,13 +13,12 @@
  *
  * It is rendered into the shell's rail slot (see RailHost), so it is a
  * viewport-tall column beside the workspace. A crop or color taken on the
- * gallery stage lands in the composer as a chip with quick Keep / Discard (or
- * Lock for a color) that post straight to element feedback with the composer's
- * text as the note — no model in the loop, which is the escape hatch that keeps
- * routing free text through the agent safe.
+ * gallery stage lands in the composer as a contextual attachment. Crop intent
+ * comes from the user's message; a picked color retains its explicit Lock action.
  */
 import React, { useEffect, useRef, useState } from "react";
-import type { DashboardDirection, DashboardGlobal } from "../types";
+import type { DashboardDirection, DashboardGlobal, VisualFocus } from "../types";
+import { sourceFields } from "../board-view.js";
 import { renderScopeChip, resolveInheritedScope } from "../chat-affordances.js";
 import { buildChatTurnContext } from "../chat-context.js";
 import {
@@ -28,9 +27,8 @@ import {
   elementFeedbackRequest,
 } from "../direction-actions.js";
 import { useChat, useElementFeedback } from "../hooks";
-import { usePendingCapture } from "../pending-capture.js";
+import { usePendingCapture, type PendingCapture } from "../pending-capture.js";
 import { formatCropSize } from "../stage-capture.js";
-import { elementFeedbackTargetFields } from "./memory-select.js";
 import { useToasts } from "./Toasts";
 import { ChatMessage } from "./ChatMessage";
 
@@ -38,6 +36,7 @@ export function ChatRail({
   directionId,
   direction,
   focusedVersionId,
+  focusedSource,
   pointer,
   reload,
 }: {
@@ -46,12 +45,15 @@ export function ChatRail({
   direction: DashboardDirection;
   /** The VIEWED version, lifted from the segmented version switcher. */
   focusedVersionId: string | null;
+  focusedSource?: VisualFocus | null;
   pointer: DashboardGlobal["approvedPointer"];
   reload: () => void;
 }) {
   const { pushToast } = useToasts();
   const chat = useChat();
   const [text, setText] = useState("");
+  const [preparing, setPreparing] = useState(false);
+  const preparingRef = useRef(false);
   const lastToastedError = useRef<string | null>(null);
 
   // The capture taken on the gallery stage, resolved from here.
@@ -81,18 +83,16 @@ export function ChatRail({
     );
   }
 
-  const disabled = chat.streaming || chat.pendingApproval !== null;
+  const disabled = preparing || chat.streaming || chat.pendingApproval !== null;
 
   // A capture belongs to the direction and version it was taken on, so the
   // composer's inherited scope never overrides it. The typed text is the note.
-  const captureFields = (): Record<string, string> => {
+  const captureFields = (target: PendingCapture): Record<string, string> & { directionId: string } => {
     const trimmed = text.trim();
-    return capture
-      ? {
-          ...elementFeedbackTargetFields(capture.directionId, capture.versionId),
-          ...(trimmed ? { note: trimmed } : {}),
-        }
-      : {};
+    return {
+      ...sourceFields(target.source),
+      ...(trimmed ? { note: trimmed } : {}),
+    };
   };
 
   const dropCapture = (): void => clearCapture();
@@ -113,59 +113,64 @@ export function ChatRail({
     reload();
   };
 
-  /** Keep a crop (as an inspire reference) or lock a picked color. */
+  /** A color can still be locked explicitly without a model call. */
   const keepCapture = (): void => {
-    if (!capture) return;
-    if (capture.capture.kind === "crop") {
-      const req = elementFeedbackRequest({ verb: "keep", intent: "inspire", ...captureFields() });
-      void recordCapture(
-        { blob: capture.capture.blob, filename: "crop.png", fields: req.form! },
-        "Kept — saved to memory.",
-      );
-    } else {
+    if (capture?.capture.kind === "color") {
       const req = elementFeedbackRequest({
         verb: "keep",
         hex: capture.capture.hex,
-        ...captureFields(),
+        ...captureFields(capture),
       });
       void recordCapture({ blob: null, fields: req.form! }, "Color locked — saved to memory.");
     }
   };
 
-  /** Discard a crop, with the composer's text as the reason. */
-  const discardCapture = (): void => {
-    if (capture?.capture.kind !== "crop") return;
-    const req = elementFeedbackRequest({ verb: "discard", ...captureFields() });
-    void recordCapture(
-      { blob: capture.capture.blob, filename: "discard.png", fields: req.form! },
-      "Discarded — saved to memory.",
-    );
-  };
-
-  const send = (): void => {
+  const send = async (): Promise<void> => {
     const trimmed = text.trim();
-    if (trimmed.length === 0 || disabled) return;
-    // The sent context matches the chip the user sees: the required
-    // directionId prop + the RESOLVED inherited version (omitted for a draft).
-    chat.send(
-      chatSendRequest({
-        message: trimmed,
-        context: buildChatTurnContext(directionId, scope.versionId),
-      }),
-    );
-    setText("");
+    if (trimmed.length === 0 || disabled || preparingRef.current) return;
+    preparingRef.current = true;
+    setPreparing(true);
+    try {
+      const crop = capture?.capture.kind === "crop" ? capture : null;
+      const cropBlob = capture?.capture.kind === "crop" ? capture.capture.blob : undefined;
+      const attachment = crop && crop.capture.kind === "crop" ? {
+        source: crop.source,
+        dataUrl: await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(String(reader.result));
+          reader.onerror = () => reject(new Error("Could not read the crop. Please try again."));
+          reader.readAsDataURL(cropBlob!);
+        }),
+      } : undefined;
+      const source = crop?.source ?? focusedSource;
+      chat.send(
+        chatSendRequest({
+          message: trimmed,
+          context: buildChatTurnContext(source?.directionId ?? directionId, source?.versionId ?? scope.versionId,
+            source?.kind === "board" ? { boardId: source.boardId, ...(source.revisionId ? { revisionId: source.revisionId } : {}) } : undefined),
+          ...(attachment ? { attachment } : {}),
+        }),
+      );
+      setText("");
+      if (crop) clearCapture();
+    } catch (error) {
+      pushToast({ kind: "error", message: error instanceof Error ? error.message : "Could not attach crop." });
+    } finally {
+      preparingRef.current = false;
+      setPreparing(false);
+    }
   };
 
   // Resume the single suspended mutating call — each control BUILDS its resume
   // request via the pure builder (approve/deny are the same route, opposite
   // boolean) and hands the bytes to the chat transport.
   const approveCall = (): void => {
-    const sessionId = chat.pendingApproval?.sessionId ?? chat.sessionId;
+    const sessionId = chat.pendingApproval?.sessionId;
     if (!sessionId) return;
     chat.approve(chatResumeRequest(sessionId, true));
   };
   const denyCall = (): void => {
-    const sessionId = chat.pendingApproval?.sessionId ?? chat.sessionId;
+    const sessionId = chat.pendingApproval?.sessionId;
     if (!sessionId) return;
     chat.approve(chatResumeRequest(sessionId, false));
   };
@@ -189,7 +194,9 @@ export function ChatRail({
       </div>
       <div className="chat-composer">
         <div className="chat-composer__context">
-          <span className="chat-scope-chip">{renderScopeChip(scope)}</span>
+          <span className="chat-scope-chip">{focusedSource?.kind === "board"
+            ? `${direction.name} · Board ${focusedSource.boardId} · ${focusedSource.revisionId ?? "no render"} · foundation ${focusedSource.versionId}`
+            : renderScopeChip(scope)}</span>
           {capture && (
             <span className="chat-crop-chip">
               {capture.capture.kind === "crop" ? (
@@ -228,7 +235,7 @@ export function ChatRail({
           placeholder={
             capture
               ? capture.capture.kind === "crop"
-                ? "Why keep or discard this crop? (optional)"
+                ? "What would you like to do with this?"
                 : "Why lock this color? (optional)"
               : "Make the CTA warmer…"
           }
@@ -236,7 +243,7 @@ export function ChatRail({
           onChange={(e) => setText(e.target.value)}
         />
         <div className="chat-composer__send-row">
-          {capture && (
+          {capture?.capture.kind === "color" && (
             <div className="chat-quick-intents">
               <button
                 type="button"
@@ -245,19 +252,8 @@ export function ChatRail({
                 title="Record this as a keep — no model call"
                 onClick={keepCapture}
               >
-                {capture.capture.kind === "crop" ? "Keep" : "Lock"}
+                Lock
               </button>
-              {capture.capture.kind === "crop" && (
-                <button
-                  type="button"
-                  className="btn btn-sm"
-                  disabled={submitting}
-                  title="Record this as a discard — no model call"
-                  onClick={discardCapture}
-                >
-                  Discard
-                </button>
-              )}
             </div>
           )}
           <button

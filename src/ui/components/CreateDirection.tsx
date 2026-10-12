@@ -50,7 +50,6 @@ export function CreateDirection({ directions, sourceId, reload, alwaysOpen, onSu
   const [subheadline, setSubheadline] = useState("");
   const [cta, setCta] = useState("");
   const [styleTilePrompt, setStyleTilePrompt] = useState("");
-  const [homepageMockupPrompt, setHomepageMockupPrompt] = useState("");
 
   // --- JSON mode state ---
   const [jsonText, setJsonText] = useState("");
@@ -71,7 +70,6 @@ export function CreateDirection({ directions, sourceId, reload, alwaysOpen, onSu
     setSubheadline("");
     setCta("");
     setStyleTilePrompt("");
-    setHomepageMockupPrompt("");
     setJsonText("");
     setError(null);
   }
@@ -108,7 +106,6 @@ export function CreateDirection({ directions, sourceId, reload, alwaysOpen, onSu
     };
     if (positioning.trim()) payload.positioning = positioning.trim();
     if (styleTilePrompt.trim()) payload.styleTilePrompt = styleTilePrompt.trim();
-    if (homepageMockupPrompt.trim()) payload.homepageMockupPrompt = homepageMockupPrompt.trim();
     return payload;
   }
 
@@ -336,16 +333,6 @@ export function CreateDirection({ directions, sourceId, reload, alwaysOpen, onSu
                 />
               </label>
 
-              <label className="explore-guidance">
-                <span className="explore-guidance-label">Homepage mockup prompt (optional)</span>
-                <textarea
-                  className="textarea"
-                  value={homepageMockupPrompt}
-                  onChange={(e) => setHomepageMockupPrompt(e.target.value)}
-                  placeholder="Describe the homepage layout. Leave blank to auto-generate."
-                  rows={2}
-                />
-              </label>
             </div>
           )}
 

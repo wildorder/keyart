@@ -13,14 +13,18 @@
  * open.
  */
 import React, { useEffect } from "react";
-import type { DashboardVersion } from "../types";
+import type { DashboardVersion, DashboardBoard } from "../types";
 import { DirectionCardBody, PaletteStrip } from "./DirectionGallery";
+import { foundationLabel } from "../board-view.js";
 
 export interface CompareItem {
   directionId: string;
   version: DashboardVersion;
   isHead: boolean;
   approved: boolean;
+  boards?: DashboardBoard[];
+  versions?: DashboardVersion[];
+  latestVersionId?: string;
 }
 
 export function CompareOverlay({
@@ -81,7 +85,7 @@ export function CompareOverlay({
                     )}
                   </span>
                   <span className="compare-col-run">
-                    {item.directionId} · {item.version.versionId}
+                    {item.directionId} · {foundationLabel(item.versions ?? [item.version], item.version.versionId)}
                   </span>
                 </div>
                 <PaletteStrip version={item.version} />
@@ -93,6 +97,9 @@ export function CompareOverlay({
                   isHead={item.isHead}
                   approved={item.approved}
                   reload={reload}
+                  boards={item.boards}
+                  versions={item.versions}
+                  latestVersionId={item.latestVersionId}
                 />
               </div>
             </div>

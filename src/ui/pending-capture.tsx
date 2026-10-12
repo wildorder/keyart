@@ -3,28 +3,23 @@
  * that produced it and the chat composer that resolves it.
  *
  * This is what makes the described gesture work: crop a region, type what you
- * think about it, hit Keep or Discard. The crop is taken in {@link DirectionHero}
+ * want done with it, then send it with your message. The crop is taken in {@link DirectionHero}
  * and lands as a chip in {@link ChatRail}'s composer — two components in
  * different DOM subtrees (the rail is portalled into the shell's third column),
  * but the same React tree, which is what context follows.
  *
- * The quick intents resolve a capture with NO model in the loop: they post the
- * same `/api/element-feedback` multipart the panel always did, with the
- * composer's text as the note. That is deliberate — it is the escape hatch that
- * makes routing free text through a model safe to add later, because a misroute
- * never costs the user the gesture.
+ * Crops become vision attachments with pinned source provenance. No preference
+ * is recorded until the user requests and approves an action. The separate full
+ * feedback panel retains its explicit operations.
  */
 import React, { createContext, useCallback, useContext, useMemo, useState } from "react";
 import type { Capture } from "./stage-capture.js";
-import type { AssetSourceImage } from "./asset-shelf-helpers.js";
+import type { VisualSource } from "./types.js";
 
 /** A capture plus everything needed to record it against the right target. */
 export interface PendingCapture {
   capture: Capture;
-  directionId: string;
-  versionId?: string;
-  /** The logical source-image name, for the extract action's `image` field. */
-  sourceImage?: AssetSourceImage;
+  source: VisualSource;
 }
 
 interface PendingCaptureApi {

@@ -10,6 +10,7 @@ import React from "react";
 import type { ChatTurn } from "../types";
 import { Markdown } from "./Markdown";
 import { ToolCallCard } from "./ToolCallCard";
+import { groupChatActions } from "../chat-stream";
 
 export function ChatMessage({
   turn,
@@ -27,6 +28,7 @@ export function ChatMessage({
   if (turn.role === "user") {
     return (
       <div className="chat-message chat-message--user">
+        {turn.attachment && <img src={turn.attachment.dataUrl} alt="Attached crop" style={{ maxWidth: 160, maxHeight: 160, objectFit: "contain" }} />}
         <div className="chat-message__body">{turn.content}</div>
       </div>
     );
@@ -41,10 +43,11 @@ export function ChatMessage({
       )}
       {turn.toolCalls.length > 0 && (
         <div className="chat-message__tool-calls">
-          {turn.toolCalls.map((ev, i) => (
+          {groupChatActions(turn.toolCalls).map((action) => (
             <ToolCallCard
-              key={i}
-              ev={ev}
+              key={action.key}
+              ev={action.event}
+              action={action}
               onApprove={onApprove}
               onDeny={onDeny}
               submitting={submitting}

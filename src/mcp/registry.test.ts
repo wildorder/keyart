@@ -90,6 +90,7 @@ describe("registry shape", () => {
       "doctor",
       "regenerate",
       "direction",
+      "board",
       "asset",
       "surface",
     ]);
@@ -365,6 +366,7 @@ describe("refine removed from the registry (WS-05)", () => {
       "approve",
       "rule",
       "promote",
+      "board",
       "asset",
       "surface",
     ]);
@@ -440,7 +442,7 @@ describe("regenerate registration + dispatch (WS-07)", () => {
       parseArgs(regenerate, []);
     } catch (err) {
       expect((err as CommandError).message).toContain(
-        "Usage: keyart regenerate <directionId> [--tweak <value>]",
+        "Usage: keyart regenerate <directionId> [--version <value>] [--reference <value>] [--tweak <value>]",
       );
     }
   });
@@ -611,7 +613,6 @@ describe("approve adapter (dry-run, no key)", () => {
       summary: "A bold, modern direction.",
       positioning: "Confident, forward-thinking leader.",
       character: { mood: "High-contrast palette, geometric type." },
-      homepageMockupPrompt: "Design a bold homepage mockup.",
       styleTilePrompt: "Create a bold style tile.",
       copyExamples: { headline: "Next", subheadline: "Modern.", cta: "Go" },
       usage: {
@@ -664,11 +665,6 @@ describe("approve adapter (dry-run, no key)", () => {
     await fs.writeFile(
       path.join(versionDir, "style-tile-prompt.md"),
       direction.styleTilePrompt,
-      "utf-8",
-    );
-    await fs.writeFile(
-      path.join(versionDir, "homepage-mockup-prompt.md"),
-      direction.homepageMockupPrompt,
       "utf-8",
     );
     await createDirectionCore(tmpDir, buildTestConfig(tmpDir)).appendVersion(
@@ -897,8 +893,9 @@ describe("doctor registration (WS-04)", () => {
     expect(names.indexOf("doctor")).toBe(8);
     expect(names[names.length - 1]).toBe("surface");
     expect(names[names.length - 2]).toBe("asset");
-    expect(names[names.length - 3]).toBe("direction");
-    expect(names[names.length - 4]).toBe("regenerate");
+    expect(names[names.length - 3]).toBe("board");
+    expect(names[names.length - 4]).toBe("direction");
+    expect(names[names.length - 5]).toBe("regenerate");
     expect(names).toContain("doctor");
     expect(getCommand("serve")!.dispatchable).toBe(false);
   });
@@ -925,6 +922,7 @@ describe("capability-facade groups (WS-04)", () => {
       "approve",
       "rule",
       "promote",
+      "board",
       "asset",
       "surface",
     ]);
@@ -1631,6 +1629,8 @@ describe("asset registration (asset-extraction WS-04)", () => {
           directionId,
           "--describe",
           "the yak mascot",
+          "--version",
+          (await createDirectionCore(tmpDir, testConfig).get(directionId)).head!,
         ],
       },
       { defaultCwd: tmpDir },
@@ -2004,7 +2004,6 @@ describe("surface bind dispatch (surface-manifest WS-03)", () => {
       summary: "A summary.",
       positioning: "A positioning statement.",
       character: {},
-      homepageMockupPrompt: "",
       styleTilePrompt: "",
       copyExamples: { headline: "h", subheadline: "s", cta: "c" },
       usage: { rules: [], antiRules: [] },

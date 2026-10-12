@@ -269,7 +269,6 @@ describe("token pipeline (end-to-end, no network / no key)", () => {
       summary: "A legacy prose-only direction.",
       positioning: "Trustworthy and human.",
       character: { mood: "Warm, earthy palette with rounded, friendly typography." },
-      homepageMockupPrompt: "A warm homepage.",
       styleTilePrompt: "A warm style tile.",
       copyExamples: { headline: "Hi", subheadline: "Hello", cta: "Go" },
       usage: {
@@ -303,7 +302,6 @@ describe("token pipeline (end-to-end, no network / no key)", () => {
             summary: "Seeded from an extract reference.",
             positioning: "Grounded in the reference's dominant color.",
             character: { mood: "Cool, considered, built around the reference blue." },
-            homepageMockupPrompt: "A cool homepage.",
             styleTilePrompt: "A cool style tile.",
             copyExamples: { headline: "H", subheadline: "S", cta: "C" },
             usage: {
@@ -412,7 +410,7 @@ describe("token pipeline (end-to-end, no network / no key)", () => {
     const heading = direction.tokens!.typography.heading;
     const body = direction.tokens!.typography.body;
 
-    for (const file of ["style-tile-prompt.md", "homepage-mockup-prompt.md"]) {
+    for (const file of ["style-tile-prompt.md"]) {
       const prompt = (
         await readVersionFile(directionId, file)
       ).toLowerCase();
@@ -450,7 +448,6 @@ describe("token pipeline (end-to-end, no network / no key)", () => {
             summary: "Rendered freely, tokens read back from pixels.",
             positioning: "Image-led.",
             character: { mood: "Open and unconstrained." },
-            homepageMockupPrompt: "A homepage.",
             styleTilePrompt: "A style tile.",
             copyExamples: { headline: "H", subheadline: "S", cta: "C" },
             usage: {

@@ -6,7 +6,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ChatEvent, ChatTurn, DashboardData, Job } from "./types.js";
-import { appendUserTurn, initialChatViewState, parseSseFrames, reduceChatEvent } from "./chat-stream.js";
+import { appendUserTurn, decideChatApproval, initialChatViewState, parseSseFrames, reduceChatEvent } from "./chat-stream.js";
 import { dashboardReadRequest, jobPollRequest, type StudioRequest } from "./direction-actions.js";
 
 // The toast system (ToastProvider + useToasts) is part of this data layer but
@@ -321,6 +321,7 @@ export interface UseChat {
  */
 export function useChat(): UseChat {
   const [state, setState] = useState(initialChatViewState());
+  const pendingRef = useRef<UseChat["pendingApproval"]>(null);
   const sessionIdRef = useRef<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -349,6 +350,8 @@ export function useChat(): UseChat {
             sessionIdRef.current = event.sessionId;
           }
           setState((prev) => reduceChatEvent(prev, event));
+          if (event.type === "pending_approval") pendingRef.current = event;
+          else if (event.type === "tool_result") pendingRef.current = null;
         }
       }
     } catch {
@@ -364,9 +367,12 @@ export function useChat(): UseChat {
       void (async () => {
         try {
           const res = await run(controller.signal);
+          if (!res.ok) await throwFromResponse(res);
           await consume(res, controller.signal);
-        } catch {
-          // Aborted before the request completed.
+        } catch (error) {
+          if (!controller.signal.aborted) setState((prev) => reduceChatEvent(prev, {
+            type: "error", message: error instanceof Error ? error.message : "Chat request failed. Please try again.",
+          }));
         }
       })();
     },
@@ -375,13 +381,13 @@ export function useChat(): UseChat {
 
   const send = useCallback(
     (req: StudioRequest) => {
-      const payload = { ...(req.payload as { sessionId?: string; message: string }) };
+      const payload = { ...(req.payload as { sessionId?: string; message: string; attachment?: ChatTurn["attachment"] }) };
       // The hook owns session continuity — fill the sessionId in when the
       // caller's descriptor did not carry one and a session already exists.
       if (payload.sessionId === undefined && sessionIdRef.current !== null) {
         payload.sessionId = sessionIdRef.current;
       }
-      setState((prev) => ({ ...appendUserTurn(prev, payload.message), streaming: true }));
+      setState((prev) => ({ ...appendUserTurn(prev, payload.message, payload.attachment), streaming: true }));
       startStream((signal) =>
         fetch(req.path, {
           method: req.method,
@@ -396,7 +402,11 @@ export function useChat(): UseChat {
 
   const approve = useCallback(
     (req: StudioRequest) => {
-      setState((prev) => ({ ...prev, pendingApproval: null, streaming: true }));
+      // Consume synchronously, before React renders: a double click cannot send twice.
+      if (!pendingRef.current) return;
+      pendingRef.current = null;
+      const approved = (req.payload as { approve: boolean }).approve;
+      setState((prev) => decideChatApproval(prev, approved));
       startStream((signal) =>
         fetch(req.path, {
           method: req.method,

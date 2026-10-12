@@ -15,6 +15,8 @@ import {
   readExtractedAsset,
 } from "../asset/asset-store.js";
 import { isExtractedAssetRetired } from "../asset/schema.js";
+import { listBoards, listBoardRevisions, resolveBoardImage } from "../board/board-store.js";
+import type { DashboardBoard } from "./types.js";
 import type {
   DirectionCharacter,
   DirectionUsage,
@@ -22,7 +24,7 @@ import type {
   KeyartConfig,
 } from "../types.js";
 import type { BrandBrief, DirectionRecord, DirectionStatus } from "../direction/schema.js";
-import { isAssetRetired } from "../direction/schema.js";
+import { isAssetRetired, versionOrdinal } from "../direction/schema.js";
 import { isRetired } from "../direction/reconcile.js";
 import {
   memoryEntryAffordances,
@@ -40,14 +42,11 @@ import { surfaceScanDir, type ScanProposal } from "../surface/scan.js";
 /**
  * Per-version generated artifact handles (opaque — pass back verbatim to
  * GET /api/asset?path=, never parse or join; see {@link ArtifactHandle}).
- * `styleBoardSvg` is the deterministic board (a strict projection of the
- * tokens); `styleBoard` is the evocative board (a mood/texture image). Every
- * key is optional so galleries degrade gracefully.
+ * The tile is the foundation; the SVG is its deterministic token specimen.
+ * Evocative Boards have separate revision identities. Missing images are legal.
  */
 export interface DirectionImages {
   styleTile?: ArtifactHandle;
-  homepageMockup?: ArtifactHandle;
-  styleBoard?: ArtifactHandle; // evocative style-board.png
   styleBoardSvg?: ArtifactHandle; // deterministic style-board.svg
   /**
    * True when this version's tokens are EXTRACTION-backed — a `style-tile.png`
@@ -90,6 +89,7 @@ export interface DashboardMemoryEntry {
  * attaches the per-version generated `images` probed off disk.
  */
 export interface DashboardVersion {
+  ordinal?: number;
   versionId: string; // = the version's id
   createdAt: string;
   producedBy?: string;
@@ -97,7 +97,6 @@ export interface DashboardVersion {
   summary: string;
   positioning: string;
   character: DirectionCharacter;
-  homepageMockupPrompt: string;
   styleTilePrompt: string;
   copyExamples: { headline: string; subheadline: string; cta: string };
   usage: DirectionUsage;
@@ -112,6 +111,7 @@ export interface DashboardVersion {
  */
 export interface DashboardExtractedAsset {
   id: string; // assetId
+  conditioning: "foundation" | "legacy-unverified";
   name: string;
   description: string; // the HEAD version's description
   headVersionId: string;
@@ -127,6 +127,9 @@ export interface DashboardExtractedAsset {
   /** The head version's persisted generation failures/degradations, verbatim
    * from `AssetVersion.imageSkips`. Additive. */
   imageSkips?: string[];
+  foundation?: { directionId: string; versionId: string };
+  origin?: "generated" | "extracted";
+  status?: "pending" | "completed" | "failed";
 }
 
 /**
@@ -153,6 +156,7 @@ export interface DashboardDirection {
   /** ACTIVE extracted assets of THIS direction only (retired excluded).
    * Always present ([] when none) so consumers never null-check. */
   extractedAssets: DashboardExtractedAsset[];
+  boards?: DashboardBoard[];
   memory: DashboardMemoryEntry[]; // THIS direction's entries only — ACTIVE only
   assets: DashboardAssetRef[]; // ACTIVE kept-crop refs only (retired excluded)
   /** Superseded/retired memory history — still reachable, never in `memory`. */
@@ -279,20 +283,12 @@ async function versionImages(
   );
   const images: DirectionImages = {};
   const styleTile = await artifacts.probe(path.join(versionDir, "style-tile.png"));
-  const mockup = await artifacts.probe(path.join(versionDir, "homepage-mockup.png"));
-  const boardPng = await artifacts.probe(path.join(versionDir, "style-board.png"));
   const boardSvg = await artifacts.probe(path.join(versionDir, "style-board.svg"));
   if (styleTile !== undefined) {
     images.styleTile = styleTile;
     // The tile is the extraction source — its presence marks the tokens as
     // extraction-backed (the studio labels the board accordingly).
     images.tokensExtracted = true;
-  }
-  if (mockup !== undefined) {
-    images.homepageMockup = mockup;
-  }
-  if (boardPng !== undefined) {
-    images.styleBoard = boardPng;
   }
   if (boardSvg !== undefined) {
     images.styleBoardSvg = boardSvg;
@@ -333,17 +329,21 @@ async function extractedAssetsByDirection(
         "extracted-assets",
         assetId,
         "versions",
-        index.head,
+        headVersion.id,
         "asset.png",
       );
-      const imagePath = await artifacts.probe(pngAbs);
+      const imagePath = headVersion.status === "completed" ? await artifacts.probe(pngAbs) : undefined;
 
       const entry: DashboardExtractedAsset = {
         id: asset.id,
+        conditioning: headVersion.conditioning,
         name: asset.name,
         description: headVersion.description,
-        headVersionId: index.head,
+        headVersionId: headVersion.id,
         versionCount: index.versions.length,
+        foundation: headVersion.foundation,
+        origin: headVersion.provenance.kind,
+        status: headVersion.status,
         ...(imagePath !== undefined ? { imagePath } : {}),
         createdAt: firstVersion.createdAt,
         ...(headVersion.dryRun === true ? { dryRun: true } : {}),
@@ -364,6 +364,27 @@ async function extractedAssetsByDirection(
     }
   }
   return byDirection;
+}
+
+async function dashboardBoards(artifacts: ArtifactStore, directionDir: string, errors: string[]): Promise<DashboardBoard[]> {
+  const result: DashboardBoard[] = [];
+  try {
+    for (const board of await listBoards(directionDir, { includeRetired: true })) {
+      const revisions: DashboardBoard["revisions"] = [];
+      for (const revision of await listBoardRevisions(directionDir, board.id)) {
+        const { imagePath } = await resolveBoardImage(directionDir, board.id, revision.id);
+        const handle = imagePath ? await artifacts.probe(imagePath) : undefined;
+        revisions.push({ id: revision.id, foundation: revision.foundation, sourceRevisionId: revision.sourceRevisionId,
+          instructions: revision.instructions, instructionVersion: revision.instructionVersion, createdAt: revision.createdAt,
+          status: revision.status, conditioning: revision.conditioning,
+          ...(revision.error ? { error: revision.error } : {}), ...(handle ? { imagePath: handle } : {}) });
+      }
+      result.push({ id: board.id, directionId: board.directionId, name: board.name, version: board.version,
+        instructions: board.instructions, instructionVersion: board.instructionVersion, head: board.head,
+        ...(board.retiredAt ? { retiredAt: board.retiredAt } : {}), revisions });
+    }
+  } catch (error) { errors.push(`Could not load Boards: ${error instanceof Error ? error.message : String(error)}`); }
+  return result;
 }
 
 /**
@@ -399,7 +420,7 @@ async function buildDashboardDirection(
       // Drop the version's identity/provenance projections; the dashboard
       // shape carries versionId + content + per-version images only.
       const { id, briefSnapshot: _b, contextSnapshot: _c, ...rest } = v;
-      const version: DashboardVersion = { ...rest, versionId: id };
+      const version: DashboardVersion = { ...rest, versionId: id, ordinal: versionOrdinal(record, id) };
       if (images) version.images = images;
       versions.push(version);
     } catch (e) {
@@ -625,6 +646,7 @@ export async function loadDashboardData(cwd: string): Promise<DashboardData> {
 
           directions.push({
             ...hydrated,
+            boards: await dashboardBoards(artifacts, path.join(dRoot, record.id), errors),
             name: record.name,
             status: record.status,
             brief,

@@ -12,12 +12,15 @@ const IMAGE_ASSET: ContactSheetAsset = {
   description: "The yak, isolated",
   versionId: "2026-07-26T00-00-00-000Z",
   hasImage: true,
-  source: {
+  status: "completed",
+  conditioning: "foundation",
+  foundation: { directionId: "direction-a", versionId: "2026-07-20T00-00-00-000Z" },
+  provenance: { kind: "extracted", source: {
+    kind: "foundation",
     directionId: "direction-a",
     versionId: "2026-07-20T00-00-00-000Z",
     image: "styleTile",
-    cropBox: { x: 1, y: 2, w: 3, h: 4 },
-  },
+  }, cropBox: { x: 1, y: 2, w: 3, h: 4 } },
 };
 
 const PENDING_ASSET: ContactSheetAsset = {
@@ -26,11 +29,10 @@ const PENDING_ASSET: ContactSheetAsset = {
   description: "",
   versionId: "2026-07-26T01-00-00-000Z",
   hasImage: false,
-  source: {
-    directionId: "direction-a",
-    versionId: "2026-07-21T00-00-00-000Z",
-    image: "homepageMockup",
-  },
+  status: "pending",
+  conditioning: "foundation",
+  foundation: { directionId: "direction-a", versionId: "2026-07-21T00-00-00-000Z" },
+  provenance: { kind: "generated" },
 };
 
 const INPUT: ContactSheetInput = {
@@ -49,13 +51,13 @@ describe("renderContactSheetSvg / renderContactSheetMarkdown — the determinist
 
   it("renders an honest pending placeholder for an image-less asset, never a fabricated image", () => {
     const svg = renderContactSheetSvg(INPUT);
-    expect(svg).toContain("pending (dry-run)");
+    expect(svg).toContain("pending");
     expect(svg).not.toContain(`<image href="${PENDING_ASSET.id}.png"`);
     expect(svg).toContain(`<image href="${IMAGE_ASSET.id}.png"`);
 
     const md = renderContactSheetMarkdown(INPUT);
     const pendingRow = md.split("\n").find((l) => l.includes(PENDING_ASSET.id));
-    expect(pendingRow).toContain("pending (dry-run)");
+    expect(pendingRow).toContain("pending");
     const imageRow = md.split("\n").find((l) => l.includes(IMAGE_ASSET.id));
     expect(imageRow).toContain(`![${IMAGE_ASSET.id}](${IMAGE_ASSET.id}.png)`);
   });
@@ -63,10 +65,10 @@ describe("renderContactSheetSvg / renderContactSheetMarkdown — the determinist
   it("carries a provenance line and the head version on every tile/row", () => {
     const svg = renderContactSheetSvg(INPUT);
     expect(svg).toContain(
-      `from ${IMAGE_ASSET.source.image} @ ${IMAGE_ASSET.source.versionId} (crop)`,
+      `extracted from styleTile; foundation direction-a@${IMAGE_ASSET.foundation.versionId} (crop)`,
     );
     expect(svg).toContain(
-      `from ${PENDING_ASSET.source.image} @ ${PENDING_ASSET.source.versionId}`,
+      `generated; foundation direction-a@${PENDING_ASSET.foundation.versionId}`,
     );
     expect(svg).toContain(`head ${IMAGE_ASSET.versionId}`);
     expect(svg).toContain(`head ${PENDING_ASSET.versionId}`);
@@ -74,12 +76,12 @@ describe("renderContactSheetSvg / renderContactSheetMarkdown — the determinist
     const md = renderContactSheetMarkdown(INPUT);
     const imageRow = md.split("\n").find((l) => l.includes(IMAGE_ASSET.id));
     expect(imageRow).toContain(
-      `${IMAGE_ASSET.source.image} @ ${IMAGE_ASSET.source.versionId} (crop)`,
+      `extracted from styleTile; foundation direction-a@${IMAGE_ASSET.foundation.versionId} (crop)`,
     );
     expect(imageRow).toContain(IMAGE_ASSET.versionId);
     const pendingRow = md.split("\n").find((l) => l.includes(PENDING_ASSET.id));
     expect(pendingRow).toContain(
-      `${PENDING_ASSET.source.image} @ ${PENDING_ASSET.source.versionId}`,
+      `generated; foundation direction-a@${PENDING_ASSET.foundation.versionId}`,
     );
     expect(pendingRow).not.toContain("(crop)");
   });

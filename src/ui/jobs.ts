@@ -16,6 +16,7 @@ export type JobKind =
   | "audit"
   | "regenerate"
   | "asset"
+  | "board"
   | "surface";
 export type JobStatus = "running" | "succeeded" | "failed";
 

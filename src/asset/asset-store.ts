@@ -1,289 +1,187 @@
 import path from "node:path";
-import { readdir } from "node:fs/promises";
-import { ensureDir, pathExists, readTextFile, writeJsonFile } from "../fs.js";
+import fs from "node:fs/promises";
+import { ensureDir, pathExists, readTextFile } from "../fs.js";
 import { CommandError } from "../errors.js";
-import {
-  parseAssetVersion,
-  parseExtractedAssetIndex,
-  isExtractedAssetRetired,
-  type AssetVersion,
-  type ExtractedAsset,
-  type ExtractedAssetIndex,
-} from "./schema.js";
-
-/**
- * The on-disk extracted-asset store: assets live under a direction's own tree at
- * `<directionDir>/extracted-assets/<assetId>/`, each carrying a tiny `asset.json`
- * index and an ordered `versions/<versionId>/` tree (`asset-version.json` +
- * the sibling artifacts WS-02 writes: `asset-prompt.md`, `asset.png`).
- *
- * Deliberately NOT behind the `VersionedStore` port — the direction-store
- * precedent: an append-only version tree with per-version folders and binary
- * blobs is not a single optimistic-concurrency document; collision-safe
- * minting + append-only writes are the concurrency discipline.
- *
- * Every exported function takes `directionDir` as its first parameter and
- * touches nothing outside `extractedAssetsRoot(directionDir)` — this is the
- * per-direction isolation invariant at the signature level. This store never
- * imports `config.ts`/`resolve.ts`; callers resolve the direction, the store is
- * a dumb tree. Reads never mutate, never backfill, never create; a `CommandError`
- * is thrown only when a NAMED asset/version is genuinely absent or malformed.
- */
+import { atomicWriteJson, withFileLock } from "../store/file-lock.js";
+import { assertFoundationPath } from "../direction/foundation.js";
+import { parseAssetVersion, parseExtractedAssetIndex, isExtractedAssetRetired, type AssetVersion, type ExtractedAsset, type ExtractedAssetIndex } from "./schema.js";
 
 const INDEX_FILE = "asset.json";
 const VERSION_FILE = "asset-version.json";
-
-/** Absolute root of a direction's extracted-asset tree: `<directionDir>/extracted-assets`. */
-export function extractedAssetsRoot(directionDir: string): string {
-  return path.join(directionDir, "extracted-assets");
+const ATTEMPT_FILE = "asset-attempt.json";
+function safeId(id: string): string {
+  if (!/^[a-zA-Z0-9][a-zA-Z0-9_-]*$/.test(id)) throw new CommandError(`Invalid asset or revision id: ${id}. Use an id, not a path.`);
+  return id;
 }
-
-/** Absolute path to one asset's own dir: `extracted-assets/<assetId>`. */
-function assetDirOf(directionDir: string, assetId: string): string {
-  return path.join(extractedAssetsRoot(directionDir), assetId);
+export function extractedAssetsRoot(directionDir: string): string { return path.join(directionDir, "extracted-assets"); }
+function assetDirOf(directionDir: string, assetId: string): string { return path.join(extractedAssetsRoot(directionDir), safeId(assetId)); }
+export function assetVersionDir(directionDir: string, assetId: string, versionId: string): string {
+  return path.join(assetDirOf(directionDir, assetId), "versions", safeId(versionId));
 }
-
-/** Absolute path to an asset's `versions/` dir. */
-function versionsDirOf(directionDir: string, assetId: string): string {
-  return path.join(assetDirOf(directionDir, assetId), "versions");
+function indexPath(directionDir: string, assetId: string): string { return path.join(assetDirOf(directionDir, assetId), INDEX_FILE); }
+async function contained(directionDir: string, file: string): Promise<void> {
+  await ensureDir(directionDir);
+  let existing = file;
+  for (;;) {
+    try { await fs.lstat(existing); break; }
+    catch (err) { if ((err as NodeJS.ErrnoException).code !== "ENOENT") throw err; }
+    const parent = path.dirname(existing);
+    if (parent === existing) throw new CommandError("Asset path has no owning direction.");
+    existing = parent;
+  }
+  await assertFoundationPath(directionDir, existing);
 }
-
-/** kebab-case slug for an asset id, falling back to a stable base. */
-function slugify(base: string): string {
-  const slug = base
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-  return slug || "asset";
-}
-
-/**
- * Mint a collision-safe assetId: slugify `name`, then disambiguate with a
- * numeric suffix (`-2`, `-3`, …) against `existing` ids so a same-name
- * extract never clobbers a sibling. PURE + synchronous (mirrors
- * mintDirectionId's loop, but over a caller-supplied list instead of fs
- * probes — callers pass `await listAssetIds(...)`).
- */
+function slugify(base: string): string { return base.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "asset"; }
 export function mintAssetId(name: string, existing: string[]): string {
-  const slug = slugify(name);
-  const taken = new Set(existing);
-  let id = slug;
-  let n = 2;
-  while (taken.has(id)) {
-    id = `${slug}-${n}`;
-    n += 1;
-  }
+  const slug = slugify(name); let id = slug; let n = 2;
+  while (existing.includes(id)) id = `${slug}-${n++}`;
   return id;
 }
-
-/**
- * Mint a timestamp version label (ISO 8601 with `:`/`.` → `-`), disambiguated
- * with a numeric suffix on a same-millisecond collision against `existing`
- * version ids (mirrors mintVersionId). PURE + synchronous.
- */
 export function mintAssetVersionId(existing: string[]): string {
-  const base = new Date().toISOString().replace(/[:.]/g, "-");
-  const taken = new Set(existing);
-  let id = base;
-  let n = 2;
-  while (taken.has(id)) {
-    id = `${base}-${n}`;
-    n += 1;
-  }
+  const base = new Date().toISOString().replace(/[:.]/g, "-"); let id = base; let n = 2;
+  while (existing.includes(id)) id = `${base}-${n++}`;
   return id;
 }
-
-/** Sorted asset folder names under the direction's tree; `[]` when the tree is absent. */
+export async function reserveAssetId(directionDir: string, name: string): Promise<string> {
+  await contained(directionDir, extractedAssetsRoot(directionDir));
+  await ensureDir(extractedAssetsRoot(directionDir));
+  await assertFoundationPath(directionDir, extractedAssetsRoot(directionDir));
+  const slug = slugify(name);
+  for (let n = 1; ; n++) {
+    const id = n === 1 ? slug : `${slug}-${n}`;
+    try { await fs.mkdir(assetDirOf(directionDir, id)); return id; }
+    catch (err) { if ((err as NodeJS.ErrnoException).code !== "EEXIST") throw err; }
+  }
+}
 export async function listAssetIds(directionDir: string): Promise<string[]> {
+  let entries;
+  try { entries = await fs.readdir(extractedAssetsRoot(directionDir), { withFileTypes: true }); }
+  catch (err) { if ((err as NodeJS.ErrnoException).code === "ENOENT") return []; throw err; }
+  const ids: string[] = [];
+  for (const entry of entries) if (entry.isDirectory() && await pathExists(indexPath(directionDir, entry.name))) ids.push(entry.name);
+  return ids.sort();
+}
+export async function readAssetIndex(directionDir: string, assetId: string): Promise<ExtractedAssetIndex> {
+  const file = indexPath(directionDir, assetId);
+  if (!(await pathExists(file))) throw new CommandError(`Asset not found: ${assetId}`);
+  await assertFoundationPath(directionDir, file);
   try {
-    const entries = await readdir(extractedAssetsRoot(directionDir), {
-      withFileTypes: true,
-    });
-    return entries
-      .filter((e) => e.isDirectory())
-      .map((e) => e.name)
-      .sort();
+    const index = parseExtractedAssetIndex(JSON.parse(await readTextFile(file)));
+    if (index.id !== assetId || index.directionId !== path.basename(directionDir)) throw new Error("identity mismatch");
+    return index;
   } catch {
-    return [];
+    throw new CommandError(`Unsupported or unreadable asset index: ${assetId}. Back up and convert this record to asset formatVersion 2 using the migration checklist; no files were changed.`);
   }
 }
-
-/**
- * Read an asset's index (`asset.json`), Zod-validated. Throws CommandError
- * naming the asset when absent, unreadable, or malformed.
- */
-export async function readAssetIndex(
-  directionDir: string,
-  assetId: string,
-): Promise<ExtractedAssetIndex> {
-  const indexPath = path.join(assetDirOf(directionDir, assetId), INDEX_FILE);
-  if (!(await pathExists(indexPath))) {
-    throw new CommandError(`Extracted asset not found: ${assetId}`);
-  }
+export async function writeAssetIndex(directionDir: string, index: ExtractedAssetIndex): Promise<void> {
+  const parsed = parseExtractedAssetIndex(index);
+  if (parsed.directionId !== path.basename(directionDir)) throw new CommandError("Asset belongs to a different direction.");
+  await contained(directionDir, indexPath(directionDir, index.id));
+  await withFileLock(indexPath(directionDir, index.id), async () => { await atomicWriteJson(indexPath(directionDir, index.id), parsed); });
+}
+export async function readAssetVersion(directionDir: string, assetId: string, versionId: string): Promise<AssetVersion> {
+  const dir = assetVersionDir(directionDir, assetId, versionId);
+  const final = path.join(dir, VERSION_FILE);
+  const file = await pathExists(final) ? final : path.join(dir, ATTEMPT_FILE);
+  if (!(await pathExists(file))) throw new CommandError(`Asset version not found: ${assetId}@${versionId}`);
+  await assertFoundationPath(directionDir, file);
   try {
-    return parseExtractedAssetIndex(JSON.parse(await readTextFile(indexPath)));
+    const version = parseAssetVersion(JSON.parse(await readTextFile(file)));
+    if (version.id !== versionId || version.foundation.directionId !== path.basename(directionDir) || (version.provenance.kind === "extracted" && version.provenance.source.directionId !== version.foundation.directionId)) throw new Error("identity mismatch");
+    return version;
   } catch {
-    throw new CommandError(
-      `Extracted-asset index is unreadable: ${assetId} (${INDEX_FILE}).`,
-    );
+    throw new CommandError(`Unsupported or unreadable asset version: ${assetId}@${versionId}. Back up and convert to asset formatVersion 2 using the migration checklist; no files were changed.`);
   }
 }
-
-/** Write an asset's index (used by retire; append goes through appendVersionToIndex). */
-export async function writeAssetIndex(
-  directionDir: string,
-  index: ExtractedAssetIndex,
-): Promise<void> {
-  const dir = assetDirOf(directionDir, index.id);
-  await ensureDir(dir);
-  await writeJsonFile(path.join(dir, INDEX_FILE), index);
-}
-
-/**
- * Read one version (`versions/<versionId>/asset-version.json`), Zod-validated.
- * Throws CommandError naming asset + version when absent or malformed.
- */
-export async function readAssetVersion(
-  directionDir: string,
-  assetId: string,
-  versionId: string,
-): Promise<AssetVersion> {
-  const versionPath = path.join(
-    versionsDirOf(directionDir, assetId),
-    versionId,
-    VERSION_FILE,
-  );
-  if (!(await pathExists(versionPath))) {
-    throw new CommandError(`Asset version not found: ${assetId}@${versionId}`);
-  }
-  try {
-    return parseAssetVersion(JSON.parse(await readTextFile(versionPath)));
-  } catch {
-    throw new CommandError(
-      `Asset version is unreadable: ${assetId}@${versionId} (${VERSION_FILE}).`,
-    );
-  }
-}
-
-/** Read the head version (index.head → readAssetVersion). */
-export async function readAssetHead(
-  directionDir: string,
-  assetId: string,
-): Promise<AssetVersion> {
+export async function readAssetHead(directionDir: string, assetId: string): Promise<AssetVersion> {
   const index = await readAssetIndex(directionDir, assetId);
+  if (!index.head) throw new CommandError(`Asset ${assetId} has no completed render yet. Select an attempt revision to revise it.`);
   return readAssetVersion(directionDir, assetId, index.head);
 }
-
-/**
- * Hydrate the full record — { id, name, directionId, versions: [...] } —
- * reading each version file in index order (last = head).
- */
-export async function readExtractedAsset(
-  directionDir: string,
-  assetId: string,
-): Promise<ExtractedAsset> {
+export async function readAssetLatestAttempt(directionDir: string, assetId: string): Promise<AssetVersion> {
   const index = await readAssetIndex(directionDir, assetId);
-  const versions: AssetVersion[] = [];
-  for (const versionId of index.versions) {
-    versions.push(await readAssetVersion(directionDir, assetId, versionId));
-  }
-  return {
-    id: index.id,
-    name: index.name,
-    directionId: index.directionId,
-    versions,
-  };
+  const id = index.versions.at(-1);
+  if (!id) throw new CommandError(`Asset ${assetId} has no attempts yet.`);
+  return readAssetVersion(directionDir, assetId, id);
 }
-
-/**
- * Append one version: write `versions/<version.id>/asset-version.json` AND
- * advance the index — creating the index on v1 (from `meta`), appending +
- * head-advancing thereafter. APPEND-ONLY + IMMUTABILITY GUARD: an
- * already-existing `version.id` is REJECTED with a loud CommandError BEFORE
- * any byte is written — an existing version folder is never rewritten or
- * deleted (v2 leaves v1 byte-untouched); `meta` is only consulted at creation
- * (an existing index's name/directionId/retiredAt/slotId are preserved
- * verbatim — `slotId` joins that list so `asset regenerate` on a fill never
- * drops the surface-manifest linkage).
- *
- * Division of labor with WS-02: this store owns the two JSON records
- * (`asset.json`, `asset-version.json`); the WS-02 pipeline writes the sibling
- * artifacts (`asset-prompt.md`, `asset.png`) into the same version folder and
- * lists them in `version.files`. The store neither writes nor validates
- * those blobs.
- *
- * Returns the updated index.
- */
-export async function appendVersionToIndex(
-  directionDir: string,
-  assetId: string,
-  meta: { name: string; directionId: string; slotId?: string },
-  version: AssetVersion,
-): Promise<ExtractedAssetIndex> {
-  const versionDir = path.join(versionsDirOf(directionDir, assetId), version.id);
-  const versionFile = path.join(versionDir, VERSION_FILE);
-  if (await pathExists(versionFile)) {
-    throw new CommandError(
-      `Asset "${assetId}" already has a version "${version.id}" — versions are immutable ` +
-        `and never rewritten. Mint a fresh version id and retry.`,
-    );
-  }
-  await ensureDir(versionDir);
-  await writeJsonFile(versionFile, version);
-
-  const indexPath = path.join(assetDirOf(directionDir, assetId), INDEX_FILE);
-  let index: ExtractedAssetIndex;
-  if (await pathExists(indexPath)) {
-    index = parseExtractedAssetIndex(JSON.parse(await readTextFile(indexPath)));
-    index = { ...index, versions: [...index.versions, version.id], head: version.id };
-  } else {
-    index = {
-      id: assetId,
-      name: meta.name,
-      directionId: meta.directionId,
-      versions: [version.id],
-      head: version.id,
-      ...(meta.slotId ? { slotId: meta.slotId } : {}),
-    };
-  }
-  await writeAssetIndex(directionDir, index);
+export async function readExtractedAsset(directionDir: string, assetId: string): Promise<ExtractedAsset> {
+  const index = await readAssetIndex(directionDir, assetId);
+  return { id: index.id, name: index.name, directionId: index.directionId,
+    versions: await Promise.all(index.versions.map((id) => readAssetVersion(directionDir, assetId, id))) };
+}
+type AssetMeta = { name: string; directionId: string; slotId?: string };
+function initialIndex(assetId: string, meta: AssetMeta): ExtractedAssetIndex {
+  return { formatVersion: 2, id: assetId, name: meta.name, directionId: meta.directionId, versions: [], head: "", ...(meta.slotId ? { slotId: meta.slotId } : {}) };
+}
+async function currentIndex(directionDir: string, assetId: string, meta: AssetMeta): Promise<ExtractedAssetIndex> {
+  const index = await pathExists(indexPath(directionDir, assetId)) ? await readAssetIndex(directionDir, assetId) : initialIndex(assetId, meta);
+  if (index.directionId !== meta.directionId || meta.directionId !== path.basename(directionDir)) throw new CommandError("Asset belongs to a different direction.");
+  if (isExtractedAssetRetired(index)) throw new CommandError(`Asset ${assetId} is retired; create a new asset instead.`);
   return index;
 }
-
-/**
- * Link an EXISTING asset to a surface slot (surface-manifest WS-03): set the
- * additive `slotId` on its index. Non-destructive to everything else;
- * overwrites a previous linkage deliberately (relinking is an explicit act).
- * Throws CommandError (via readAssetIndex) when the asset is absent.
- */
-export async function setExtractedAssetSlotId(
-  directionDir: string,
-  assetId: string,
-  slotId: string,
-): Promise<ExtractedAssetIndex> {
-  const index = await readAssetIndex(directionDir, assetId);
-  const linked = { ...index, slotId };
-  await writeAssetIndex(directionDir, linked);
-  return linked;
+/** Publish inspectable pending metadata before a model call; output folders never collide. */
+export async function reserveAssetVersion(directionDir: string, assetId: string, meta: AssetMeta, attempt: Omit<AssetVersion, "id">): Promise<AssetVersion> {
+  await contained(directionDir, indexPath(directionDir, assetId));
+  await contained(directionDir, path.join(assetDirOf(directionDir, assetId), "versions"));
+  return withFileLock(indexPath(directionDir, assetId), async () => {
+    const index = await currentIndex(directionDir, assetId, meta);
+    let id = mintAssetVersionId(index.versions);
+    const occupied = [...index.versions];
+    while (await pathExists(assetVersionDir(directionDir, assetId, id))) { occupied.push(id); id = mintAssetVersionId(occupied); }
+    const version = parseAssetVersion({ ...attempt, id, status: "pending" });
+    if (version.foundation.directionId !== meta.directionId) throw new CommandError("Asset foundation belongs to a different direction.");
+    await ensureDir(assetVersionDir(directionDir, assetId, id));
+    await atomicWriteJson(path.join(assetVersionDir(directionDir, assetId, id), ATTEMPT_FILE), version);
+    await atomicWriteJson(indexPath(directionDir, assetId), { ...index, versions: [...index.versions, id] });
+    return version;
+  });
 }
-
-/**
- * Retire an asset: set the NON-DESTRUCTIVE `retiredAt` marker on its index
- * (the AssetRef.retiredAt idiom). Nothing on disk is deleted — the full
- * version tree and PNGs remain; downstream reads (shelf/pack/dashboard)
- * filter on isExtractedAssetRetired. IDEMPOTENT: retiring an already-retired
- * asset is a no-op that preserves the ORIGINAL retiredAt and returns the
- * index unchanged. Throws CommandError (via readAssetIndex) when the asset
- * is genuinely absent.
- */
-export async function retireExtractedAsset(
-  directionDir: string,
-  assetId: string,
-  when?: string,
-): Promise<ExtractedAssetIndex> {
-  const index = await readAssetIndex(directionDir, assetId);
-  if (isExtractedAssetRetired(index)) return index; // idempotent — keep the first timestamp
-  const retired = { ...index, retiredAt: when ?? new Date().toISOString() };
-  await writeAssetIndex(directionDir, retired);
-  return retired;
+/** Terminal records are immutable. Only completed renders advance the successful head. */
+export async function appendVersionToIndex(directionDir: string, assetId: string, meta: AssetMeta, version: AssetVersion): Promise<ExtractedAssetIndex> {
+  const parsed = parseAssetVersion(version);
+  await contained(directionDir, indexPath(directionDir, assetId));
+  await contained(directionDir, assetVersionDir(directionDir, assetId, version.id));
+  return withFileLock(indexPath(directionDir, assetId), async () => {
+    const index = await currentIndex(directionDir, assetId, meta);
+    if (parsed.foundation.directionId !== meta.directionId) throw new CommandError("Asset foundation belongs to a different direction.");
+    const file = path.join(assetVersionDir(directionDir, assetId, version.id), VERSION_FILE);
+    if (await pathExists(file)) throw new CommandError(`Asset "${assetId}" already has version "${version.id}" — versions are immutable.`);
+    const attemptFile = path.join(assetVersionDir(directionDir, assetId, version.id), ATTEMPT_FILE);
+    if (await pathExists(attemptFile)) {
+      const attempt = parseAssetVersion(JSON.parse(await readTextFile(attemptFile)));
+      for (const key of ["foundation", "conditioning", "description", "producedBy", "contextSnapshot", "sourceRevisionId"] as const) {
+        if (JSON.stringify(attempt[key]) !== JSON.stringify(parsed[key])) throw new CommandError(`Reserved asset ${version.id} ${key} cannot change during generation.`);
+      }
+      const stableOrigin = (v: AssetVersion) => v.provenance.kind === "generated" ? v.provenance : { kind: v.provenance.kind, source: v.provenance.source, cropBox: v.provenance.cropBox };
+      if (JSON.stringify(stableOrigin(attempt)) !== JSON.stringify(stableOrigin(parsed))) throw new CommandError("Reserved asset provenance cannot change during generation.");
+      if (parsed.provenance.kind === "extracted" && parsed.provenance.cropPath) {
+        const suffix = path.join("extracted-assets", assetId, "versions", version.id, "source-crop.png").split(path.sep).join("/");
+        if (!parsed.provenance.cropPath.replace(/\\/g, "/").endsWith(`/${suffix}`) || !parsed.files.includes("source-crop.png")) throw new CommandError("Stored crop provenance must name this asset revision's own copied crop.");
+        await assertFoundationPath(directionDir, path.join(path.dirname(file), "source-crop.png"));
+      }
+      if (parsed.status === "completed" && (!parsed.files.includes("asset.png") || !(await pathExists(path.join(path.dirname(file), "asset.png"))))) {
+        throw new CommandError("A completed asset must have its own generated image.");
+      }
+    }
+    await atomicWriteJson(file, parsed);
+    const updated = { ...index, versions: index.versions.includes(version.id) ? index.versions : [...index.versions, version.id], head: version.status === "completed" ? version.id : index.head };
+    await atomicWriteJson(indexPath(directionDir, assetId), updated);
+    return updated;
+  });
+}
+export async function setExtractedAssetSlotId(directionDir: string, assetId: string, slotId: string): Promise<ExtractedAssetIndex> {
+  await contained(directionDir, indexPath(directionDir, assetId));
+  return withFileLock(indexPath(directionDir, assetId), async () => {
+    const linked = { ...await readAssetIndex(directionDir, assetId), slotId };
+    await atomicWriteJson(indexPath(directionDir, assetId), linked); return linked;
+  });
+}
+export async function retireExtractedAsset(directionDir: string, assetId: string, when?: string): Promise<ExtractedAssetIndex> {
+  await contained(directionDir, indexPath(directionDir, assetId));
+  return withFileLock(indexPath(directionDir, assetId), async () => {
+    const index = await readAssetIndex(directionDir, assetId);
+    if (isExtractedAssetRetired(index)) return index;
+    const retired = { ...index, retiredAt: when ?? new Date().toISOString() };
+    await atomicWriteJson(indexPath(directionDir, assetId), retired); return retired;
+  });
 }

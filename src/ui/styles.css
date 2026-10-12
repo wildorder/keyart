@@ -4342,6 +4342,22 @@ h2 {
   align-items: flex-start;
   min-width: 0;
 }
+.board-stage-content { flex: 1 1 auto; min-width: 0; }
+.stage-details { padding: var(--space-2) var(--space-3); }
+.stage-details > summary { cursor: pointer; color: var(--color-text-muted); font-size: var(--fs-xs); }
+.stage-details[open] > summary { margin-bottom: var(--space-2); }
+.stage-details > label { display: block; }
+.board-controls { padding: var(--space-2) 0; }
+.board-controls .regen-form,
+.asset-shelf > .regen-form { display: grid; gap: var(--space-2); }
+.board-controls label,
+.asset-shelf > .regen-form label { display: grid; gap: var(--space-1); }
+.board-controls textarea,
+.board-controls select,
+.board-controls input:not([type="checkbox"]),
+.asset-shelf > .regen-form input,
+.asset-shelf > .regen-form textarea,
+.asset-shelf > .regen-form select { width: 100%; box-sizing: border-box; }
 
 /* The staged image takes the full width of the stage at its natural aspect
    ratio — never capped by height. In a capture mode the wrapper takes the

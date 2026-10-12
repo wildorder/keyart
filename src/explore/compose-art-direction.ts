@@ -24,8 +24,8 @@ export interface ComposeArtDirectionOptions {
  * The SHARED art-direction compiler — the visual sibling of `renderContextBlock`.
  * Projects the assembled context's `visualDirectives` (+ a live one-shot + soft
  * locked-color guidance) into ONE precedence-ordered image-prompt tail.
- * WS-03 invokes it once per generated prompt: style tile and homepage on explore;
- * those two plus the distinct evocative board on regenerate.
+ * Invoked once per generated prompt: a foundation tile, a Board revision,
+ * or an asset, each through its shared generation pipeline.
  * Pure + deterministic — no I/O.
  *
  * Precedence ladder (SC-06), each present tier LABELED:

@@ -139,9 +139,11 @@ function packTarball(tmpRoot) {
 async function installProject(tmpRoot, tarballPath) {
   const proj = path.join(tmpRoot, "project");
   await fsp.mkdir(proj, { recursive: true });
+  // No "type" field, like a fresh `npm init` project: keyart must work (and
+  // stay quiet) in a consumer that never opted into ESM.
   await fsp.writeFile(
     path.join(proj, "package.json"),
-    JSON.stringify({ name: "keyart-smoke", private: true, version: "0.0.0", type: "module" }, null, 2),
+    JSON.stringify({ name: "keyart-smoke", private: true, version: "0.0.0" }, null, 2),
   );
   run("npm", ["install", "--omit=dev", "--no-audit", "--no-fund", tarballPath], { cwd: proj });
   return proj;
@@ -324,6 +326,11 @@ async function main() {
       assertTrue(res.stdout.trim().length > 0, "doctor produced no stdout", res.stdout);
       assertTrue(!/\n\s+at /.test(res.stderr ?? ""), "doctor stderr looks like a stack trace", res.stderr);
       assertTrue(!/ERR_MODULE_NOT_FOUND/.test(res.stderr ?? ""), "doctor stderr has ERR_MODULE_NOT_FOUND", res.stderr);
+      assertTrue(
+        !/MODULE_TYPELESS_PACKAGE_JSON/.test(res.stderr ?? ""),
+        "doctor stderr has Node's MODULE_TYPELESS_PACKAGE_JSON warning for keyart.config.ts",
+        res.stderr,
+      );
     });
 
     const directionId = "default";

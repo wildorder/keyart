@@ -176,6 +176,24 @@ describe("runExplore — direction placement and snapshots", () => {
       `${relVersionDir}/context-snapshot.md`,
     );
   });
+
+  it("keyless: each placeholder version carries its own direction's name, not a shared template name", async () => {
+    const config = buildTestConfig(tmpDir);
+    await seedDirection(tmpDir, config, "seed", "A default brand for explore tests.");
+    const { runExplore } = await import("./explore.js");
+
+    const result = await runExplore({ cwd: tmpDir, from: "seed" });
+
+    const core = createDirectionCore(tmpDir, config);
+    const versions = await headVersions(result.directionIds);
+    for (const [index, directionId] of result.directionIds.entries()) {
+      const record = await core.get(directionId);
+      expect(versions[index].name).toBe(record.name);
+    }
+    // The placeholder template's fixed name must not leak into any of them.
+    expect(versions.map((v) => v.name)).not.toContain("Bold & Modern");
+    expect(new Set(versions.map((v) => v.name)).size).toBe(versions.length);
+  });
 });
 
 describe("runExplore — assembled context (memory + global hard rules)", () => {
@@ -688,15 +706,19 @@ describe("runExplore — brief projection + soft-intent seed (WS-04)", () => {
     for (const d of firstDirs) expect(d.tokens?.palette).toHaveLength(6);
 
     // Same brief ⇒ byte-stable placeholder tokens + prose across runs (keyless
-    // parity). The per-version identity fields (id/createdAt) legitimately differ,
-    // so compare the deterministic CONTENT (tokens + prose), not the whole record.
+    // parity). The per-version identity fields (id/createdAt, and the name, which
+    // a keyless placeholder takes from its own direction) legitimately differ, so
+    // compare the deterministic CONTENT (tokens + prose), not the whole record.
     const second = await runExplore({ cwd: tmpDir, directionId: "moody-b" });
     const secondDirs = await headVersions(second.directionIds);
+    expect(firstDirs[0].name).toBe("moody-a");
+    expect(secondDirs[0].name).toBe("moody-b");
     const content = (v: DirectionVersion): unknown => {
-      const { id, createdAt, producedBy, briefSnapshot, contextSnapshot, ...rest } =
+      const { id, createdAt, name, producedBy, briefSnapshot, contextSnapshot, ...rest } =
         v;
       void id;
       void createdAt;
+      void name;
       void producedBy;
       void briefSnapshot;
       void contextSnapshot;

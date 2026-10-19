@@ -106,8 +106,9 @@ describe("smoke: full CLI workflow (dry-run, no network)", () => {
     );
     expect(snapshotBytes.equals(directionBriefBytes)).toBe(true);
 
-    // The head version carries the first placeholder direction's content.
-    expect(version.name).toBe("Bold & Modern");
+    // The head version carries the placeholder content, named after its own
+    // direction (init's "Default"), not the template's fixed "Bold & Modern".
+    expect(version.name).toBe("Default");
 
     // 3. Approve — pins the direction's head version and codifies the brand.
     await runApprove({ cwd: tmpDir, directionId, force: true });
@@ -117,7 +118,7 @@ describe("smoke: full CLI workflow (dry-run, no network)", () => {
     const approved = await readJson<
       DirectionVersion & { provenance?: { directionId: string; versionId: string } }
     >("brand/approved/current-direction.json");
-    expect(approved.name).toBe("Bold & Modern");
+    expect(approved.name).toBe("Default");
     expect(approved.provenance?.directionId).toBe(directionId);
     expect(approved.provenance?.versionId).toBe(version.id);
 

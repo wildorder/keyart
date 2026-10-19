@@ -463,7 +463,15 @@ async function generateV1IntoExistingDirection(
 
   // Exactly one generated content is written as v1 into the EXISTING record —
   // no core.create here; the record must already exist.
-  const { id: _slug, ...content } = directions[0];
+  const { id: _slug, ...generatedContent } = directions[0];
+  // Keyless placeholders come from a fixed template set that knows nothing
+  // about this direction, so their name ("Bold & Modern") would contradict
+  // the direction's own (e.g. "Option 1 — warm & editorial"). A placeholder
+  // version carries its direction's name instead; live generations keep the
+  // model's name.
+  const content = hasApiKey()
+    ? generatedContent
+    : { ...generatedContent, name: (await core.get(opts.directionId)).name };
   const version: DirectionVersion = {
     ...content,
     id: "", // the writer mints a collision-safe versionId

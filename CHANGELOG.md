@@ -12,7 +12,22 @@ listed under **Changed** or **Removed** with a migration note. Per
 
 ## [Unreleased]
 
-Nothing yet.
+### Fixed
+
+- Commands no longer print Node's `MODULE_TYPELESS_PACKAGE_JSON` warning in
+  projects whose `package.json` has no `"type"` field (a fresh `npm init`).
+  Keyart's own ESM `keyart.config.ts` triggered it on every command; only that
+  warning is dropped, and only while the config is imported.
+- Keyless `explore` placeholder versions now carry their direction's own name
+  instead of the template's fixed "Bold & Modern", so `approve` reports the
+  direction you picked (e.g. "Option 1 — warm & editorial").
+
+### Changed
+
+- The packaging smoke test now installs into a project with no `"type"` field,
+  matching a fresh consumer project, and asserts the warning above is absent.
+- Internal planning files (`docs/programs/`, `nightshift.config.json`) are no
+  longer tracked; they were already listed in `.gitignore`.
 
 ## [0.2.0] — 2026-10-12
 

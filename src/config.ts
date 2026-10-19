@@ -125,6 +125,36 @@ function formatConfigLoadError(configPath: string, err: unknown): Error {
   return new Error(`Failed to load ${configPath}: ${message}`);
 }
 
+/**
+ * Import the config module without Node's MODULE_TYPELESS_PACKAGE_JSON
+ * warning. `keyart init` writes an ESM `keyart.config.ts` into whatever
+ * project it runs in; when that project's package.json has no "type" field,
+ * Node reparses the file as ESM and prints a four-line warning on EVERY
+ * command telling the user to change their package.json — noise caused by
+ * Keyart's file, not by anything the user did. Only that one warning code is
+ * dropped, and only while this import is in flight; every other warning
+ * passes through untouched.
+ */
+async function importConfigModule(fileUrl: string): Promise<Record<string, unknown>> {
+  const emitWarning = process.emitWarning;
+  process.emitWarning = function (warning: string | Error, ...rest: unknown[]) {
+    const options = rest[0];
+    const code =
+      typeof options === "object" && options !== null
+        ? (options as { code?: string }).code
+        : typeof rest[1] === "string"
+          ? rest[1]
+          : undefined;
+    if (code === "MODULE_TYPELESS_PACKAGE_JSON") return;
+    return (emitWarning as (...args: unknown[]) => void).call(process, warning, ...rest);
+  } as typeof process.emitWarning;
+  try {
+    return (await import(fileUrl)) as Record<string, unknown>;
+  } finally {
+    process.emitWarning = emitWarning;
+  }
+}
+
 export async function loadConfig(
   cwd?: string,
   opts?: { bustCache?: boolean },
@@ -149,7 +179,7 @@ export async function loadConfig(
     if (opts?.bustCache) {
       fileUrl += `?v=${Date.now()}`;
     }
-    mod = (await import(fileUrl)) as Record<string, unknown>;
+    mod = await importConfigModule(fileUrl);
   } catch (err) {
     throw formatConfigLoadError(configPath, err);
   }
